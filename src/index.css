@@ -487,6 +487,15 @@ body {
   margin-left: auto;
 }
 
+/* Override btn-danger for settings buttons to not be circular */
+.setting-item .btn-danger {
+  width: auto;
+  height: auto;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
 
 /* Responsive adjustments */
 @media (max-height: 400px) {
