@@ -20,6 +20,7 @@
         <button class="tab-btn" data-tab="grammar">Grammar</button>
         <button class="tab-btn" data-tab="links">Links</button>
         <button class="tab-btn" data-tab="tasks">Tasks</button>
+        <button class="tab-btn" data-tab="chat">Chat</button>
       </div>
       
       <!-- Clipboard Tab Content -->
@@ -88,6 +89,19 @@
               <span>Tasks (<span id="tasks-count">0</span>)</span>
             </div>
             <div id="tasks-items" class="tasks-items"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Tab Content -->
+      <div id="chat-tab" class="tab-content">
+        <div class="chat-content">
+          <div class="chat-info">
+            <p>Type your message below and press Enter to start a conversation with AI in a new window.</p>
+          </div>
+          <div class="input-section">
+            <textarea id="chat-input" placeholder="Ask me anything..." rows="3" style="-webkit-app-region: no-drag; pointer-events: auto;"></textarea>
+            <button id="send-chat-message" class="btn btn-primary">Send & Open Chat</button>
           </div>
         </div>
       </div>
@@ -161,6 +175,16 @@
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="tasks-tab-toggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-item">
+            <div class="setting-description">
+              <strong>Chat Tab</strong>
+              <p>Open a dedicated chat window for AI conversations.</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="chat-tab-toggle" checked>
               <span class="slider"></span>
             </label>
           </div>

@@ -97,11 +97,59 @@ interface TaskItem {
 let savedClipboardItems: ClipboardItem[] = [];
 let savedLinkItems: LinkItem[] = [];
 let savedTaskItems: TaskItem[] = [];
+let chatWindow: BrowserWindow | null = null;
 
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Create chat window function
+const createChatWindow = (initialMessage?: string) => {
+  if (chatWindow && !chatWindow.isDestroyed()) {
+    chatWindow.focus();
+    // If there's an initial message and window already exists, send it
+    if (initialMessage) {
+      chatWindow.webContents.send('initial-message', initialMessage);
+    }
+    return;
+  }
+
+  chatWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    minWidth: 600,
+    minHeight: 400,
+    frame: false,
+    transparent: true,
+    resizable: true,
+    movable: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  // Load the chat window HTML
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    chatWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}/chat-window.html`);
+  } else {
+    chatWindow.loadFile(path.join(__dirname, '../renderer/chat-window.html'));
+  }
+
+  // Send initial message once the window is ready
+  if (initialMessage) {
+    chatWindow.webContents.once('dom-ready', () => {
+      chatWindow!.webContents.send('initial-message', initialMessage);
+    });
+  }
+
+  // Handle window closed
+  chatWindow.on('closed', () => {
+    chatWindow = null;
+  });
+};
 
 // IPC handlers for clipboard operations
 ipcMain.handle('clipboard:write-text', (event, text: string) => {
@@ -388,6 +436,79 @@ ipcMain.handle('window:set-opacity', (event, opacity: number) => {
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to set opacity'
     };
+  }
+});
+
+// Chat window handlers
+ipcMain.handle('chat:open-window', (event, initialMessage?: string) => {
+  createChatWindow(initialMessage);
+  return { success: true };
+});
+
+ipcMain.handle('chat:send-message', async (event, message: string, conversationHistory: any[]) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not found. Please add OPENAI_API_KEY to your .env file.');
+    }
+
+    // Convert conversation history to OpenAI format
+    const messages = [
+      {
+        role: "system" as const,
+        content: "You are a helpful AI assistant. Provide clear, concise, and helpful responses. Be friendly and conversational while being informative."
+      },
+      ...conversationHistory
+        .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+        .slice(-10) // Keep only last 10 messages for context
+        .map(msg => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content
+        }))
+    ];
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: messages,
+      max_tokens: 1000,
+      temperature: 0.7,
+    });
+
+    return {
+      success: true,
+      result: completion.choices[0]?.message?.content || "Sorry, I couldn't generate a response right now. Please try again."
+    };
+  } catch (error) {
+    console.error('Chat error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+});
+
+// Chat window control handlers
+ipcMain.handle('chat-window:close', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    window.close();
+  }
+});
+
+ipcMain.handle('chat-window:minimize', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    window.minimize();
+  }
+});
+
+ipcMain.handle('chat-window:maximize', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    if (window.isMaximized()) {
+      window.unmaximize();
+    } else {
+      window.maximize();
+    }
   }
 });
 

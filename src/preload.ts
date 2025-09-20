@@ -32,5 +32,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   window: {
     setOpacity: (opacity: number) => ipcRenderer.invoke('window:set-opacity', opacity),
+    close: () => ipcRenderer.invoke('chat-window:close'),
+    minimize: () => ipcRenderer.invoke('chat-window:minimize'),
+    maximize: () => ipcRenderer.invoke('chat-window:maximize'),
+  },
+  chat: {
+    openWindow: (initialMessage?: string) => ipcRenderer.invoke('chat:open-window', initialMessage),
+    sendMessage: (message: string, conversationHistory: any[]) => ipcRenderer.invoke('chat:send-message', message, conversationHistory),
+    onInitialMessage: (callback: (message: string) => void) => ipcRenderer.on('initial-message', (event, message) => callback(message)),
   },
 });
