@@ -89,12 +89,15 @@ ipcMain.handle('clipboard:read-text', () => {
   return clipboard.readText();
 });
 
-ipcMain.handle('clipboard:save-item', (event, text: string) => {
+ipcMain.handle('clipboard:save-item', (event, text: string, items: ClipboardItem[]) => {
+  // Update the main process array with the current items from renderer
+  savedClipboardItems = items || savedClipboardItems;
+  
   // Check if item already exists to avoid duplicates
   const existingItem = savedClipboardItems.find(item => item.text === text);
   if (existingItem) {
     // Return the existing item with a flag indicating it's a duplicate
-    return { ...existingItem, isDuplicate: true };
+    return { items: savedClipboardItems, savedItem: { ...existingItem, isDuplicate: true } };
   }
 
   const newItem: ClipboardItem = {
@@ -111,21 +114,23 @@ ipcMain.handle('clipboard:save-item', (event, text: string) => {
     savedClipboardItems = savedClipboardItems.slice(0, 50);
   }
   
-  return newItem;
+  return { items: savedClipboardItems, savedItem: newItem };
 });
 
 ipcMain.handle('clipboard:get-items', () => {
   return savedClipboardItems;
 });
 
-ipcMain.handle('clipboard:delete-item', (event, id: string) => {
+ipcMain.handle('clipboard:delete-item', (event, id: string, items: ClipboardItem[]) => {
+  // Update the main process array with the current items from renderer
+  savedClipboardItems = items || savedClipboardItems;
   savedClipboardItems = savedClipboardItems.filter(item => item.id !== id);
-  return true;
+  return savedClipboardItems;
 });
 
 ipcMain.handle('clipboard:clear-all', () => {
   savedClipboardItems = [];
-  return true;
+  return savedClipboardItems;
 });
 
 // In this file you can include the rest of your app's specific main process

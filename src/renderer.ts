@@ -16,10 +16,10 @@ interface ElectronAPI {
   clipboard: {
     writeText: (text: string) => Promise<boolean>;
     readText: () => Promise<string>;
-    saveClipboardItem: (text: string) => Promise<ClipboardItem>;
+    saveClipboardItem: (text: string, items: ClipboardItem[]) => Promise<{items: ClipboardItem[], savedItem: ClipboardItem}>;
     getSavedItems: () => Promise<ClipboardItem[]>;
-    deleteItem: (id: string) => Promise<boolean>;
-    clearAll: () => Promise<boolean>;
+    deleteItem: (id: string, items: ClipboardItem[]) => Promise<ClipboardItem[]>;
+    clearAll: () => Promise<ClipboardItem[]>;
   };
 }
 
@@ -49,12 +49,31 @@ class ClipboardManager {
     this.setupKeyboardShortcuts();
   }
 
+  private saveToLocalStorage() {
+    try {
+      localStorage.setItem('clipboardItems', JSON.stringify(this.items));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  }
+
+  private loadFromLocalStorage(): ClipboardItem[] {
+    try {
+      const stored = localStorage.getItem('clipboardItems');
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Failed to load from localStorage:', error);
+      return [];
+    }
+  }
+
   private setupEventListeners() {
     // Clear all button
     document.getElementById('clear-all')?.addEventListener('click', async () => {
       if (confirm('Clear all saved clipboard items?')) {
-        await window.electronAPI.clipboard.clearAll();
-        await this.loadSavedItems();
+        this.items = await window.electronAPI.clipboard.clearAll();
+        this.saveToLocalStorage();
+        this.renderItems();
       }
     });
 
@@ -97,8 +116,9 @@ class ClipboardManager {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'C') {
         e.preventDefault();
         if (confirm('Clear all saved clipboard items?')) {
-          await window.electronAPI.clipboard.clearAll();
-          await this.loadSavedItems();
+          this.items = await window.electronAPI.clipboard.clearAll();
+          this.saveToLocalStorage();
+          this.renderItems();
         }
       }
     });
@@ -106,12 +126,14 @@ class ClipboardManager {
 
   private async saveItem(text: string) {
     try {
-      const savedItem = await window.electronAPI.clipboard.saveClipboardItem(text);
+      const result = await window.electronAPI.clipboard.saveClipboardItem(text, this.items);
       
-      await this.loadSavedItems();
+      this.items = result.items;
+      this.saveToLocalStorage();
+      this.renderItems();
       
       // Show feedback message based on whether it was a duplicate
-      if (savedItem && (savedItem as any).isDuplicate) {
+      if (result.savedItem && (result.savedItem as any).isDuplicate) {
         this.showMessage('Item already exists in clipboard history', 'warning');
       } else {
         this.showMessage('Item saved to clipboard history', 'success');
@@ -124,7 +146,14 @@ class ClipboardManager {
 
   private async loadSavedItems() {
     try {
-      this.items = await window.electronAPI.clipboard.getSavedItems();
+      // First try to load from localStorage
+      const localItems = this.loadFromLocalStorage();
+      if (localItems.length > 0) {
+        this.items = localItems;
+      } else {
+        // Fallback to main process if localStorage is empty
+        this.items = await window.electronAPI.clipboard.getSavedItems();
+      }
       this.renderItems();
     } catch (error) {
       console.error('Failed to load clipboard items:', error);
@@ -158,8 +187,9 @@ class ClipboardManager {
     this.itemsContainer.querySelectorAll('.delete-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const id = (e.target as HTMLElement).dataset.id!;
-        await window.electronAPI.clipboard.deleteItem(id);
-        await this.loadSavedItems();
+        this.items = await window.electronAPI.clipboard.deleteItem(id, this.items);
+        this.saveToLocalStorage();
+        this.renderItems();
       });
     });
   }
