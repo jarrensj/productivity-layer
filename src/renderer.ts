@@ -563,6 +563,14 @@ class ClipboardManager {
     if (mainApp && settingsPage) {
       mainApp.style.display = 'none';
       settingsPage.style.display = 'flex';
+      
+      // Initialize tab order UI when settings page is shown
+      setTimeout(() => {
+        const stored = localStorage.getItem('tabPreferences');
+        const preferences = stored ? JSON.parse(stored) : {};
+        const tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat'];
+        this.initializeTabOrderUI(tabOrder);
+      }, 100);
     }
   }
 
@@ -606,12 +614,18 @@ class ClipboardManager {
     const tasksEnabled = (document.getElementById('tasks-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const chatEnabled = (document.getElementById('chat-tab-toggle') as HTMLInputElement)?.checked ?? true;
     
+    // Get current tab order from localStorage or use default
+    const stored = localStorage.getItem('tabPreferences');
+    const currentPreferences = stored ? JSON.parse(stored) : {};
+    const defaultOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat'];
+    
     const preferences = {
       clipboardTab: clipboardEnabled,
       grammarTab: grammarEnabled,
       linksTab: linksEnabled,
       tasksTab: tasksEnabled,
-      chatTab: chatEnabled
+      chatTab: chatEnabled,
+      tabOrder: currentPreferences.tabOrder || defaultOrder
     };
     
     try {
@@ -624,7 +638,19 @@ class ClipboardManager {
   private loadTabPreferences() {
     try {
       const stored = localStorage.getItem('tabPreferences');
-      const preferences = stored ? JSON.parse(stored) : { clipboardTab: true, grammarTab: true, linksTab: true, tasksTab: true, chatTab: true };
+      const preferences = stored ? JSON.parse(stored) : { 
+        clipboardTab: true, 
+        grammarTab: true, 
+        linksTab: true, 
+        tasksTab: true, 
+        chatTab: true,
+        tabOrder: ['clipboard', 'grammar', 'links', 'tasks', 'chat']
+      };
+      
+      // Apply tab order first
+      if (preferences.tabOrder) {
+        this.applyTabOrder(preferences.tabOrder);
+      }
       
       // Update toggle states
       const clipboardToggle = document.getElementById('clipboard-tab-toggle') as HTMLInputElement;
@@ -657,6 +683,9 @@ class ClipboardManager {
         chatToggle.checked = preferences.chatTab ?? true;
         this.toggleTabVisibility('chat', preferences.chatTab ?? true);
       }
+      
+      // Initialize tab order UI in settings
+      this.initializeTabOrderUI(preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat']);
       
       // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
       setTimeout(() => {
@@ -736,6 +765,165 @@ class ClipboardManager {
       localStorage.setItem('windowOpacity', opacity.toString());
     } catch (error) {
       console.error('Failed to save opacity preference:', error);
+    }
+  }
+
+  private applyTabOrder(tabOrder: string[]) {
+    const tabNavigation = document.querySelector('.tab-navigation');
+    if (!tabNavigation) return;
+
+    // Get all current tab buttons
+    const tabButtons = Array.from(tabNavigation.querySelectorAll('.tab-btn')) as HTMLElement[];
+    
+    // Create a map for quick lookup
+    const buttonMap = new Map<string, HTMLElement>();
+    tabButtons.forEach(btn => {
+      const tabName = btn.getAttribute('data-tab');
+      if (tabName) {
+        buttonMap.set(tabName, btn);
+      }
+    });
+
+    // Clear the navigation and add buttons in the specified order
+    tabNavigation.innerHTML = '';
+    tabOrder.forEach(tabName => {
+      const button = buttonMap.get(tabName);
+      if (button) {
+        tabNavigation.appendChild(button);
+      }
+    });
+  }
+
+  private initializeTabOrderUI(tabOrder: string[]) {
+    // Use a timeout to ensure DOM is ready
+    setTimeout(() => {
+      // Create the tab order section if it doesn't exist
+      const settingsPage = document.getElementById('settings-page');
+      if (!settingsPage) {
+        console.warn('Settings page not found');
+        return;
+      }
+
+      // Find the interface customization section
+      const interfaceSection = settingsPage.querySelector('.settings-section');
+      if (!interfaceSection) {
+        console.warn('Interface section not found');
+        return;
+      }
+
+      // Check if tab order UI already exists
+      let tabOrderContainer = document.getElementById('tab-order-container');
+      if (!tabOrderContainer) {
+        // Create the tab order section
+        const tabOrderHTML = `
+          <div class="setting-item" id="tab-order-container">
+            <div class="setting-description">
+              <strong>Tab Order</strong>
+              <p>Drag and drop to reorder tabs in your preferred sequence.</p>
+            </div>
+            <div id="tab-order-list" class="tab-order-list"></div>
+          </div>
+        `;
+
+        // Find the Chat Tab toggle (last toggle) to insert after it
+        const settingItems = Array.from(interfaceSection.querySelectorAll('.setting-item'));
+        const chatTabToggle = settingItems.find(item => {
+          const strong = item.querySelector('strong');
+          return strong && strong.textContent?.trim() === 'Chat Tab';
+        });
+        
+        if (chatTabToggle) {
+          chatTabToggle.insertAdjacentHTML('afterend', tabOrderHTML);
+          tabOrderContainer = document.getElementById('tab-order-container');
+          console.log('Tab order container created after Chat Tab toggle');
+        } else {
+          // Fallback: insert at the end of the interface section
+          interfaceSection.insertAdjacentHTML('beforeend', tabOrderHTML);
+          tabOrderContainer = document.getElementById('tab-order-container');
+          console.log('Tab order container created as fallback');
+        }
+      }
+
+      if (tabOrderContainer) {
+        this.renderTabOrderList(tabOrder);
+        this.setupTabOrderDragAndDrop();
+        console.log('Tab order UI initialized with order:', tabOrder);
+      } else {
+        console.error('Failed to create tab order container');
+      }
+    }, 200);
+  }
+
+  private renderTabOrderList(tabOrder: string[]) {
+    const tabOrderList = document.getElementById('tab-order-list');
+    if (!tabOrderList) {
+      console.error('Tab order list element not found');
+      return;
+    }
+
+    const tabLabels = {
+      clipboard: 'Clipboard',
+      grammar: 'Grammar Checker',
+      links: 'Favorite Links',
+      tasks: 'Tasks',
+      chat: 'Chat'
+    };
+
+    const tabOrderHTML = tabOrder.map(tabName => `
+      <div class="tab-order-item" data-tab="${tabName}" draggable="true">
+        <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
+        <span class="tab-name">${tabLabels[tabName as keyof typeof tabLabels] || tabName}</span>
+      </div>
+    `).join('');
+
+    tabOrderList.innerHTML = tabOrderHTML;
+    console.log('Rendered tab order list with HTML:', tabOrderHTML);
+  }
+
+  private setupTabOrderDragAndDrop() {
+    const tabOrderList = document.getElementById('tab-order-list');
+    if (!tabOrderList) return;
+
+    const dragUtil = new DragToReorderUtil();
+    
+    // Get current tab order from DOM
+    const getCurrentTabOrder = () => {
+      return Array.from(tabOrderList.querySelectorAll('.tab-order-item')).map(item => 
+        item.getAttribute('data-tab')
+      ).filter(tab => tab) as string[];
+    };
+
+    dragUtil.setupDragAndDrop(
+      tabOrderList,
+      '.tab-order-item',
+      getCurrentTabOrder(),
+      (fromIndex: number, toIndex: number) => {
+        const currentOrder = getCurrentTabOrder();
+        const newOrder = Utils.reorderArray(currentOrder, fromIndex, toIndex);
+        
+        // Update the UI
+        this.renderTabOrderList(newOrder);
+        
+        // Apply the new order to the main tabs
+        this.applyTabOrder(newOrder);
+        
+        // Save the new order
+        this.saveTabOrder(newOrder);
+        
+        // Re-setup drag and drop for the newly rendered items
+        setTimeout(() => this.setupTabOrderDragAndDrop(), 100);
+      }
+    );
+  }
+
+  private saveTabOrder(tabOrder: string[]) {
+    try {
+      const stored = localStorage.getItem('tabPreferences');
+      const preferences = stored ? JSON.parse(stored) : {};
+      preferences.tabOrder = tabOrder;
+      localStorage.setItem('tabPreferences', JSON.stringify(preferences));
+    } catch (error) {
+      console.error('Failed to save tab order:', error);
     }
   }
 
