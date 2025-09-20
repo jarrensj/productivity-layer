@@ -205,6 +205,106 @@ ipcMain.handle('clipboard:clear-all', () => {
   return savedClipboardItems;
 });
 
+// Images generation with Gemini
+ipcMain.handle('images:generate', async (event, prompt: string, imageData: string) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    
+    if (!apiKey) {
+      return {
+        success: false,
+        error: 'Gemini API key not configured. Please add GEMINI_API_KEY to your .env file.'
+      };
+    }
+
+    // Convert image data URL to base64 (remove data:image/...;base64, prefix)
+    const base64Image = imageData.split(',')[1];
+    const mimeType = imageData.split(';')[0].split(':')[1];
+    
+    // Build the parts array - always include text, optionally include image
+    const parts: any[] = [{ text: prompt }];
+    
+    if (base64Image && mimeType) {
+      parts.push({
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Image
+        }
+      });
+    }
+
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: parts
+          }
+        ]
+      })
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return {
+        success: false,
+        error: `API call failed: ${JSON.stringify(data)}`
+      };
+    }
+
+    // Extract base64 image data if present
+    let extractedImageData = null;
+    
+    // First check: direct data field (matches curl command expectation)
+    if (data.data) {
+      extractedImageData = data.data;
+    }
+    // Second check: candidates response structure
+    else if (data.candidates?.[0]?.content?.parts) {
+      for (const part of data.candidates[0].content.parts) {
+        if (part.inlineData?.data) {
+          extractedImageData = part.inlineData.data;
+          break;
+        }
+        if (part.inline_data?.data) {
+          extractedImageData = part.inline_data.data;
+          break;
+        }
+      }
+    }
+
+    if (extractedImageData) {
+      const generatedImageData = `data:image/png;base64,${extractedImageData}`;
+      return {
+        success: true,
+        type: 'image',
+        result: generatedImageData
+      };
+    } else {
+      // Check for text response (fallback for analysis)
+      const candidate = data.candidates?.[0];
+      const generatedText = candidate?.content?.parts?.[0]?.text || "No response generated";
+      return {
+        success: true,
+        type: 'text',
+        result: generatedText
+      };
+    }
+    
+  } catch (error) {
+    console.error('Gemini API error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+});
+
 // Grammar checking with OpenAI
 ipcMain.handle('grammar:check', async (event, text: string) => {
   try {

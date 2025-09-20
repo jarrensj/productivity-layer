@@ -27,6 +27,14 @@ interface TaskItem {
   timestamp: number;
 }
 
+interface ImageItem {
+  id: string;
+  originalImage?: string; // base64 data URL
+  generatedImage?: string; // base64 data URL
+  prompt: string;
+  timestamp: number;
+}
+
 interface ElectronAPI {
   clipboard: {
     writeText: (text: string) => Promise<boolean>;
@@ -58,6 +66,9 @@ interface ElectronAPI {
   };
   chat: {
     openWindow: (initialMessage?: string) => Promise<{success: boolean; error?: string}>;
+  };
+  images: {
+    generateImage: (prompt: string, imageData: string) => Promise<{success: boolean; type?: string; result?: string; error?: string}>;
   };
 }
 
@@ -334,6 +345,22 @@ class ClipboardManager {
       setTimeout(() => this.ensureActiveTab(), 50);
     });
 
+    document.getElementById('images-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('images')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('images', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
+    });
+
     // Opacity slider control
     document.getElementById('opacity-slider')?.addEventListener('input', (e) => {
       const slider = e.target as HTMLInputElement;
@@ -568,7 +595,7 @@ class ClipboardManager {
       setTimeout(() => {
         const stored = localStorage.getItem('tabPreferences');
         const preferences = stored ? JSON.parse(stored) : {};
-        const tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat'];
+        const tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
         this.initializeTabOrderUI(tabOrder);
       }, 100);
     }
@@ -613,11 +640,12 @@ class ClipboardManager {
     const linksEnabled = (document.getElementById('links-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const tasksEnabled = (document.getElementById('tasks-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const chatEnabled = (document.getElementById('chat-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    const imagesEnabled = (document.getElementById('images-tab-toggle') as HTMLInputElement)?.checked ?? true;
     
     // Get current tab order from localStorage or use default
     const stored = localStorage.getItem('tabPreferences');
     const currentPreferences = stored ? JSON.parse(stored) : {};
-    const defaultOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat'];
+    const defaultOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
     
     const preferences = {
       clipboardTab: clipboardEnabled,
@@ -625,6 +653,7 @@ class ClipboardManager {
       linksTab: linksEnabled,
       tasksTab: tasksEnabled,
       chatTab: chatEnabled,
+      imagesTab: imagesEnabled,
       tabOrder: currentPreferences.tabOrder || defaultOrder
     };
     
@@ -638,14 +667,38 @@ class ClipboardManager {
   private loadTabPreferences() {
     try {
       const stored = localStorage.getItem('tabPreferences');
-      const preferences = stored ? JSON.parse(stored) : { 
+      let preferences = stored ? JSON.parse(stored) : { 
         clipboardTab: true, 
         grammarTab: true, 
         linksTab: true, 
         tasksTab: true, 
         chatTab: true,
-        tabOrder: ['clipboard', 'grammar', 'links', 'tasks', 'chat']
+        imagesTab: true,
+        tabOrder: ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images']
       };
+
+      // Migration: Add Images tab if it doesn't exist in stored preferences
+      if (stored) {
+        let needsUpdate = false;
+        
+        // Add imagesTab if missing
+        if (preferences.imagesTab === undefined) {
+          preferences.imagesTab = true;
+          needsUpdate = true;
+        }
+        
+        // Add 'images' to tabOrder if missing
+        if (!preferences.tabOrder || !preferences.tabOrder.includes('images')) {
+          preferences.tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat'];
+          preferences.tabOrder.push('images');
+          needsUpdate = true;
+        }
+        
+        // Save updated preferences
+        if (needsUpdate) {
+          localStorage.setItem('tabPreferences', JSON.stringify(preferences));
+        }
+      }
       
       // Apply tab order first
       if (preferences.tabOrder) {
@@ -658,6 +711,7 @@ class ClipboardManager {
       const linksToggle = document.getElementById('links-tab-toggle') as HTMLInputElement;
       const tasksToggle = document.getElementById('tasks-tab-toggle') as HTMLInputElement;
       const chatToggle = document.getElementById('chat-tab-toggle') as HTMLInputElement;
+      const imagesToggle = document.getElementById('images-tab-toggle') as HTMLInputElement;
       
       if (clipboardToggle) {
         clipboardToggle.checked = preferences.clipboardTab;
@@ -684,8 +738,13 @@ class ClipboardManager {
         this.toggleTabVisibility('chat', preferences.chatTab ?? true);
       }
       
+      if (imagesToggle) {
+        imagesToggle.checked = preferences.imagesTab ?? true;
+        this.toggleTabVisibility('images', preferences.imagesTab ?? true);
+      }
+      
       // Initialize tab order UI in settings
-      this.initializeTabOrderUI(preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat']);
+      this.initializeTabOrderUI(preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images']);
       
       // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
       setTimeout(() => {
@@ -722,8 +781,9 @@ class ClipboardManager {
     const linksToggle = document.getElementById('links-tab-toggle') as HTMLInputElement;
     const tasksToggle = document.getElementById('tasks-tab-toggle') as HTMLInputElement;
     const chatToggle = document.getElementById('chat-tab-toggle') as HTMLInputElement;
+    const imagesToggle = document.getElementById('images-tab-toggle') as HTMLInputElement;
     
-    if (!clipboardToggle || !grammarToggle || !linksToggle || !tasksToggle || !chatToggle) return false;
+    if (!clipboardToggle || !grammarToggle || !linksToggle || !tasksToggle || !chatToggle || !imagesToggle) return false;
     
     // Count how many tabs would remain enabled after disabling this one
     const remainingTabs = [];
@@ -732,6 +792,7 @@ class ClipboardManager {
     if (tabName !== 'links' && linksToggle.checked) remainingTabs.push('links');
     if (tabName !== 'tasks' && tasksToggle.checked) remainingTabs.push('tasks');
     if (tabName !== 'chat' && chatToggle.checked) remainingTabs.push('chat');
+    if (tabName !== 'images' && imagesToggle.checked) remainingTabs.push('images');
     
     // Allow disabling only if at least one tab would remain
     return remainingTabs.length > 0;
@@ -825,17 +886,17 @@ class ClipboardManager {
           </div>
         `;
 
-        // Find the Chat Tab toggle (last toggle) to insert after it
+        // Find the Images Tab toggle (last toggle) to insert after it
         const settingItems = Array.from(interfaceSection.querySelectorAll('.setting-item'));
-        const chatTabToggle = settingItems.find(item => {
+        const imagesTabToggle = settingItems.find(item => {
           const strong = item.querySelector('strong');
-          return strong && strong.textContent?.trim() === 'Chat Tab';
+          return strong && strong.textContent?.trim() === 'Images Tab';
         });
         
-        if (chatTabToggle) {
-          chatTabToggle.insertAdjacentHTML('afterend', tabOrderHTML);
+        if (imagesTabToggle) {
+          imagesTabToggle.insertAdjacentHTML('afterend', tabOrderHTML);
           tabOrderContainer = document.getElementById('tab-order-container');
-          console.log('Tab order container created after Chat Tab toggle');
+          console.log('Tab order container created after Images Tab toggle');
         } else {
           // Fallback: insert at the end of the interface section
           interfaceSection.insertAdjacentHTML('beforeend', tabOrderHTML);
@@ -866,7 +927,8 @@ class ClipboardManager {
       grammar: 'Grammar Checker',
       links: 'Favorite Links',
       tasks: 'Tasks',
-      chat: 'Chat'
+      chat: 'Chat',
+      images: 'Images'
     };
 
     const tabOrderHTML = tabOrder.map(tabName => `
@@ -1580,6 +1642,340 @@ class TasksManager {
   }
 }
 
+// Images Manager Class
+class ImagesManager {
+  private currentImageData: string | null = null;
+  private uploadArea: HTMLElement;
+  private fileInput: HTMLInputElement;
+  private uploadPlaceholder: HTMLElement;
+  private currentImageContainer: HTMLElement;
+  private currentImageElement: HTMLImageElement;
+  private imagePrompt: HTMLTextAreaElement;
+  private generateButton: HTMLElement;
+  private imageResults: HTMLElement;
+  private changeImageButton: HTMLElement;
+  private clearImageButton: HTMLElement;
+
+  constructor() {
+    this.uploadArea = document.getElementById('image-upload-area')!;
+    this.fileInput = document.getElementById('image-file-input') as HTMLInputElement;
+    this.uploadPlaceholder = document.querySelector('.upload-placeholder')!;
+    this.currentImageContainer = document.getElementById('current-image-container')!;
+    this.currentImageElement = document.getElementById('current-image') as HTMLImageElement;
+    this.imagePrompt = document.getElementById('image-prompt') as HTMLTextAreaElement;
+    this.generateButton = document.getElementById('generate-image')!;
+    this.imageResults = document.getElementById('image-results')!;
+    this.changeImageButton = document.getElementById('change-image')!;
+    this.clearImageButton = document.getElementById('clear-image')!;
+    
+    this.init();
+  }
+
+  private init() {
+    this.setupEventListeners();
+    this.loadSavedImage();
+  }
+
+  private setupEventListeners() {
+    // Upload area click
+    this.uploadArea.addEventListener('click', (e) => {
+      if (e.target === this.uploadArea || e.target === this.uploadPlaceholder || 
+          this.uploadPlaceholder.contains(e.target as Node)) {
+        this.fileInput.click();
+      }
+    });
+
+    // File input change
+    this.fileInput.addEventListener('change', (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        this.handleImageUpload(file);
+      }
+    });
+
+    // Drag and drop
+    this.uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      this.uploadArea.classList.add('dragover');
+    });
+
+    this.uploadArea.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      this.uploadArea.classList.remove('dragover');
+    });
+
+    this.uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      this.uploadArea.classList.remove('dragover');
+      
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        if (file.type.startsWith('image/')) {
+          this.handleImageUpload(file);
+        } else {
+          this.showMessage('Please upload an image file', 'error');
+        }
+      }
+    });
+
+    // Change image button
+    this.changeImageButton.addEventListener('click', () => {
+      this.fileInput.click();
+    });
+
+    // Clear image button
+    this.clearImageButton.addEventListener('click', () => {
+      this.clearImage();
+    });
+
+    // Generate button
+    this.generateButton.addEventListener('click', () => {
+      this.generateImage();
+    });
+
+    // Enter key to generate (Ctrl/Cmd + Enter for new line)
+    this.imagePrompt.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        this.generateImage();
+      }
+    });
+  }
+
+  private handleImageUpload(file: File) {
+    if (!file.type.startsWith('image/')) {
+      this.showMessage('Please select a valid image file', 'error');
+      return;
+    }
+
+    // Check file size (limit to 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      this.showMessage('Image file is too large. Please select a file under 10MB', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      this.currentImageData = dataUrl;
+      this.displayCurrentImage(dataUrl);
+      this.saveImageToLocalStorage();
+      this.showMessage('Image uploaded successfully', 'success');
+    };
+    reader.onerror = () => {
+      this.showMessage('Failed to read image file', 'error');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  private displayCurrentImage(dataUrl: string) {
+    this.currentImageElement.src = dataUrl;
+    this.uploadPlaceholder.style.display = 'none';
+    this.currentImageContainer.style.display = 'flex';
+  }
+
+  private clearImage() {
+    this.currentImageData = null;
+    this.currentImageElement.src = '';
+    this.uploadPlaceholder.style.display = 'flex';
+    this.currentImageContainer.style.display = 'none';
+    this.fileInput.value = '';
+    this.saveImageToLocalStorage();
+    this.showResults('Upload an image and enter a prompt to get started.', 'default');
+    this.showMessage('Image cleared', 'success');
+  }
+
+  private async generateImage() {
+    const prompt = this.imagePrompt.value.trim();
+    
+    if (!prompt) {
+      this.showMessage('Please enter a prompt describing what you want to do with the image', 'error');
+      return;
+    }
+
+    if (!this.currentImageData) {
+      this.showMessage('Please upload an image first', 'error');
+      return;
+    }
+
+    // Show loading state
+    this.showResults('Generating image...', 'loading');
+    this.generateButton.textContent = 'Generating...';
+    this.generateButton.setAttribute('disabled', 'true');
+
+    try {
+      // For now, just simulate image generation
+      // In a real implementation, you would call an API like OpenAI DALL-E or Stable Diffusion
+      await this.simulateImageGeneration(prompt);
+    } catch (error) {
+      console.error('Image generation error:', error);
+      this.showResults('Error generating image. Please try again.', 'error');
+    } finally {
+      this.generateButton.textContent = 'Generate Image';
+      this.generateButton.removeAttribute('disabled');
+    }
+  }
+
+  private async simulateImageGeneration(prompt: string): Promise<void> {
+    try {
+      // Use IPC to call the main process which has access to environment variables
+      const response = await window.electronAPI.images.generateImage(prompt, this.currentImageData!);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Unknown error occurred');
+      }
+
+      let resultHtml = '';
+      
+      if (response.type === 'image') {
+        resultHtml = `
+          <div class="generation-result">
+            <p><strong>Your Prompt:</strong> ${Utils.escapeHtml(prompt)}</p>
+            <div class="generated-image-container">
+              <div class="image-container">
+                <p><strong>Generated Image:</strong></p>
+                <img src="${response.result}" alt="Generated image" class="generated-image" id="generated-image-${Date.now()}">
+                <div class="image-actions">
+                  <button class="btn btn-secondary copy-image-btn" data-image-src="${response.result}">Copy Image</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        this.showMessage('Image generated successfully!', 'success');
+      } else {
+        // We got a text response (fallback for analysis)
+        resultHtml = `
+          <div class="generation-result">
+            <p><strong>Your Prompt:</strong> ${Utils.escapeHtml(prompt)}</p>
+            <img src="${this.currentImageData}" alt="Original image" class="generated-image">
+            <div class="ai-response">
+              <p><strong>AI Response:</strong></p>
+              <div class="response-text">${Utils.escapeHtml(response.result || 'No response generated')}</div>
+            </div>
+          </div>
+        `;
+        this.showMessage('AI response generated!', 'success');
+      }
+      
+      this.showResults(resultHtml, 'success');
+      
+      // Add event listeners for copy buttons
+      this.addCopyButtonListeners();
+      
+    } catch (error) {
+      console.error('Image generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.showResults(`Error: ${errorMessage}`, 'error');
+      this.showMessage('Failed to generate image', 'error');
+    }
+  }
+
+  private showResults(content: string, type: 'success' | 'error' | 'loading' | 'default') {
+    this.imageResults.innerHTML = content;
+    this.imageResults.className = `image-results ${type}`;
+  }
+
+  private addCopyButtonListeners() {
+    const copyButtons = this.imageResults.querySelectorAll('.copy-image-btn');
+    copyButtons.forEach(button => {
+      button.addEventListener('click', async (e) => {
+        const target = e.target as HTMLButtonElement;
+        const imageSrc = target.getAttribute('data-image-src');
+        
+        if (imageSrc) {
+          try {
+            await this.copyImageToClipboard(imageSrc);
+            this.showMessage('Image copied to clipboard!', 'success');
+            
+            // Visual feedback - temporarily change button text
+            const originalText = target.textContent;
+            target.textContent = 'Copied!';
+            target.disabled = true;
+            
+            setTimeout(() => {
+              target.textContent = originalText;
+              target.disabled = false;
+            }, 2000);
+            
+          } catch (error) {
+            console.error('Failed to copy image:', error);
+            this.showMessage('Failed to copy image to clipboard', 'error');
+          }
+        }
+      });
+    });
+  }
+
+  private async copyImageToClipboard(dataUrl: string) {
+    try {
+      // Convert data URL to blob
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      
+      // Use the Clipboard API to copy the image
+      if (navigator.clipboard && window.ClipboardItem) {
+        const clipboardItem = new ClipboardItem({
+          [blob.type]: blob
+        });
+        await navigator.clipboard.write([clipboardItem]);
+      } else {
+        // Fallback: create a temporary canvas and copy as image
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx?.drawImage(img, 0, 0);
+          
+          canvas.toBlob(async (blob) => {
+            if (blob && navigator.clipboard && window.ClipboardItem) {
+              const clipboardItem = new ClipboardItem({
+                [blob.type]: blob
+              });
+              await navigator.clipboard.write([clipboardItem]);
+            }
+          });
+        };
+        img.src = dataUrl;
+      }
+    } catch (error) {
+      console.error('Error copying image to clipboard:', error);
+      throw error;
+    }
+  }
+
+  private saveImageToLocalStorage() {
+    try {
+      if (this.currentImageData) {
+        localStorage.setItem('currentImage', this.currentImageData);
+      } else {
+        localStorage.removeItem('currentImage');
+      }
+    } catch (error) {
+      console.error('Failed to save image to localStorage:', error);
+    }
+  }
+
+  private loadSavedImage() {
+    try {
+      const savedImage = localStorage.getItem('currentImage');
+      if (savedImage) {
+        this.currentImageData = savedImage;
+        this.displayCurrentImage(savedImage);
+      }
+    } catch (error) {
+      console.error('Failed to load saved image:', error);
+    }
+  }
+
+  private showMessage(message: string, type: 'success' | 'warning' | 'error') {
+    Utils.showMessage(message, type);
+  }
+}
+
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize tab manager
@@ -1587,6 +1983,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize grammar checker
   new GrammarChecker();
+  
+  // Initialize images manager
+  new ImagesManager();
   
   // Wait for electronAPI to be available for clipboard functionality
   if (window.electronAPI) {
