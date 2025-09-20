@@ -1135,3 +1135,116 @@ input:checked + .slider:before {
   min-width: 120px;
   -webkit-app-region: no-drag;
 }
+
+/* Tab Order List Styles */
+.tab-order-list {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+  max-width: 400px;
+}
+
+.tab-order-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: move;
+  transition: all 0.2s ease;
+  user-select: none;
+  position: relative;
+}
+
+.tab-order-item:last-child {
+  margin-bottom: 0;
+}
+
+.tab-order-item:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* All tab items - blue theme */
+.tab-order-item[data-tab="clipboard"],
+.tab-order-item[data-tab="grammar"],
+.tab-order-item[data-tab="links"],
+.tab-order-item[data-tab="tasks"],
+.tab-order-item[data-tab="chat"] {
+  background: rgba(33, 150, 243, 0.4);
+  border-color: rgba(33, 150, 243, 0.7);
+}
+
+.tab-order-item[data-tab="clipboard"]:hover,
+.tab-order-item[data-tab="grammar"]:hover,
+.tab-order-item[data-tab="links"]:hover,
+.tab-order-item[data-tab="tasks"]:hover,
+.tab-order-item[data-tab="chat"]:hover {
+  background: rgba(33, 150, 243, 0.5);
+  border-color: rgba(33, 150, 243, 0.9);
+}
+
+.tab-order-item .drag-handle {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  margin-right: 12px;
+  cursor: grab;
+  line-height: 1;
+  width: 18px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.tab-order-item:hover .drag-handle {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.tab-order-item .drag-handle:active {
+  cursor: grabbing;
+}
+
+.tab-order-item .tab-name {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 1);
+  font-size: 14px;
+}
+
+/* Tab Order Item Dragging States */
+.tab-order-item.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+  z-index: 1000;
+}
+
+.tab-order-item.drag-over-top {
+  border-top: 2px solid #007acc;
+}
+
+.tab-order-item.drag-over-top::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #007acc;
+  border-radius: 1px;
+}
+
+.tab-order-item.drag-over-bottom {
+  border-bottom: 2px solid #007acc;
+}
+
+.tab-order-item.drag-over-bottom::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #007acc;
+  border-radius: 1px;
+}
