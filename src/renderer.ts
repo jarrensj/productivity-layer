@@ -67,6 +67,9 @@ interface ElectronAPI {
   chat: {
     openWindow: (initialMessage?: string) => Promise<{success: boolean; error?: string}>;
   };
+  images: {
+    generateImage: (prompt: string, imageData: string) => Promise<{success: boolean; type?: string; result?: string; error?: string}>;
+  };
 }
 
 declare global {
@@ -1809,28 +1812,62 @@ class ImagesManager {
       console.error('Image generation error:', error);
       this.showResults('Error generating image. Please try again.', 'error');
     } finally {
-      this.generateButton.textContent = 'Generate/Modify Image';
+      this.generateButton.textContent = 'Generate Image';
       this.generateButton.removeAttribute('disabled');
     }
   }
 
   private async simulateImageGeneration(prompt: string): Promise<void> {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // For demo purposes, we'll just show the original image with a message
-    // In a real implementation, you would send the image and prompt to an AI service
-    const resultHtml = `
-      <div class="generation-result">
-        <p><strong>Prompt:</strong> ${Utils.escapeHtml(prompt)}</p>
-        <p><em>Note: This is a demo. In a real implementation, this would generate/modify the image using AI.</em></p>
-        <img src="${this.currentImageData}" alt="Generated image" class="generated-image">
-        <p><small>Original image shown for demo purposes</small></p>
-      </div>
-    `;
-    
-    this.showResults(resultHtml, 'success');
-    this.showMessage('Image generation completed (demo)', 'success');
+    try {
+      // Use IPC to call the main process which has access to environment variables
+      const response = await window.electronAPI.images.generateImage(prompt, this.currentImageData!);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Unknown error occurred');
+      }
+
+      let resultHtml = '';
+      
+      if (response.type === 'image') {
+        resultHtml = `
+          <div class="generation-result">
+            <p><strong>Your Prompt:</strong> ${Utils.escapeHtml(prompt)}</p>
+            <div class="image-comparison">
+              <div class="image-container">
+                <p><strong>Original:</strong></p>
+                <img src="${this.currentImageData}" alt="Original image" class="generated-image">
+              </div>
+              <div class="image-container">
+                <p><strong>Generated:</strong></p>
+                <img src="${response.result}" alt="Generated image" class="generated-image">
+              </div>
+            </div>
+          </div>
+        `;
+        this.showMessage('Image generated successfully!', 'success');
+      } else {
+        // We got a text response (fallback for analysis)
+        resultHtml = `
+          <div class="generation-result">
+            <p><strong>Your Prompt:</strong> ${Utils.escapeHtml(prompt)}</p>
+            <img src="${this.currentImageData}" alt="Original image" class="generated-image">
+            <div class="ai-response">
+              <p><strong>AI Response:</strong></p>
+              <div class="response-text">${Utils.escapeHtml(response.result || 'No response generated')}</div>
+            </div>
+          </div>
+        `;
+        this.showMessage('AI response generated!', 'success');
+      }
+      
+      this.showResults(resultHtml, 'success');
+      
+    } catch (error) {
+      console.error('Image generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.showResults(`Error: ${errorMessage}`, 'error');
+      this.showMessage('Failed to generate image', 'error');
+    }
   }
 
   private showResults(content: string, type: 'success' | 'error' | 'loading' | 'default') {

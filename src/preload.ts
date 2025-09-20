@@ -41,4 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     sendMessage: (message: string, conversationHistory: any[]) => ipcRenderer.invoke('chat:send-message', message, conversationHistory),
     onInitialMessage: (callback: (message: string) => void) => ipcRenderer.on('initial-message', (event, message) => callback(message)),
   },
+  images: {
+    generateImage: (prompt: string, imageData: string) => ipcRenderer.invoke('images:generate', prompt, imageData),
+  },
 });
