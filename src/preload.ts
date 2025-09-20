@@ -27,4 +27,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createChatWindow: (message: string, response: string) => ipcRenderer.invoke('chat:create-window', message, response),
     sendChatMessage: (conversationId: string, message: string) => ipcRenderer.invoke('chat:send-message-to-conversation', conversationId, message),
   },
+  closeWindow: () => ipcRenderer.invoke('window:close'),
 });

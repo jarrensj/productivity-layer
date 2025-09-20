@@ -18,10 +18,13 @@ export class ChatWindowManager {
     
     // Create the browser window
     const chatWindow = new BrowserWindow({
-      width: 1200,
-      height: 800,
+      width: 400,
+      height: 500,
+        frame: false,
+      transparent: true,
+      alwaysOnTop: true,
       webPreferences: {
-        preload: path.join(__dirname, '../preload.js'),
+        preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
       },
@@ -69,6 +72,9 @@ export class ChatWindowManager {
     const conversationId = conversation.id;
     const initialMessages = conversation.history;
     
+    console.log('Loading chat window fallback with conversation ID:', conversationId);
+    console.log('Initial messages:', initialMessages);
+    
     const html = `
       <!DOCTYPE html>
       <html>
@@ -81,7 +87,11 @@ export class ChatWindowManager {
       </head>
       <body>
         <div class="header">
-          <h1>🤖 AI Chat - Continue the Conversation</h1>
+          <div class="header-content">
+            <h1 class="header-title">AI Chat</h1>
+            <span class="header-keywords" id="header-keywords"></span>
+          </div>
+          <button class="close-btn" id="close-btn" title="Close">×</button>
         </div>
         <div class="chat-container">
           <div class="messages" id="messages">
@@ -91,13 +101,9 @@ export class ChatWindowManager {
             <input 
               type="text" 
               id="chatInput" 
-              placeholder="Continue the conversation..." 
               maxlength="500"
             />
             <button id="sendButton">Send</button>
-          </div>
-          <div style="text-align: center; margin-top: 10px; color: #666; font-size: 12px;">
-            💡 Type your follow-up question above and press Enter or click Send
           </div>
           <div class="status" id="status"></div>
         </div>
@@ -132,93 +138,177 @@ export class ChatWindowManager {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         margin: 0;
         padding: 0;
-        background: #f5f5f5;
+        background: transparent;
         height: 100vh;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
+        -webkit-app-region: drag;
+        touch-action: manipulation;
       }
       .header {
-        background: #2196f3;
-        color: white;
-        padding: 15px 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        background: rgba(255, 255, 255, 0.8);
+        color: #333;
+        padding: 12px 16px;
+        border-radius: 12px 12px 0 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        backdrop-filter: blur(15px);
+        -webkit-app-region: drag;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
       }
-      .header h1 {
-        margin: 0;
-        font-size: 1.2em;
+      .header-content {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        -webkit-app-region: drag;
+      }
+      .header-title {
+        margin: 0 0 2px 0;
+        font-size: 1.1em;
+        font-weight: 600;
+        -webkit-app-region: drag;
+      }
+      .header-keywords {
+        font-size: 0.8em;
+        color: #555;
+        font-weight: 500;
+        opacity: 1;
+        -webkit-app-region: drag;
+        margin-top: 1px;
+        display: block;
+      }
+      .close-btn {
+        background: none;
+        border: none;
+        font-size: 20px;
+        color: #666;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        -webkit-app-region: no-drag;
+        flex-shrink: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .close-btn:hover {
+        background: rgba(255, 0, 0, 0.1);
+        color: #d32f2f;
       }
       .chat-container {
         flex: 1;
         display: flex;
         flex-direction: column;
-        max-width: 1000px;
-        margin: 0 auto;
         width: 100%;
-        padding: 20px;
+        height: calc(100vh - 60px);
+        padding: 0;
+        margin: 0;
         box-sizing: border-box;
+        background: rgba(255, 255, 255, 0.75);
+        border-radius: 0 0 12px 12px;
+        backdrop-filter: blur(15px);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
       }
       .messages {
         flex: 1;
-        overflow-y: auto;
-        margin-bottom: 20px;
-        padding: 20px;
-        background: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        overflow-y: scroll;
+        overflow-x: hidden;
+        padding: 12px 16px;
+        background: transparent;
+        margin: 0;
+        max-height: calc(100vh - 120px);
+        min-height: 200px;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
+        -webkit-app-region: no-drag;
+      }
+      
+      /* Custom scrollbar styling */
+      .messages::-webkit-scrollbar {
+        width: 6px;
+      }
+      
+      .messages::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 3px;
+      }
+      
+      .messages::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 3px;
+      }
+      
+      .messages::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.5);
       }
       .message {
-        margin-bottom: 20px;
-        padding: 15px;
-        border-radius: 10px;
-        line-height: 1.6;
+        margin-bottom: 8px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        line-height: 1.4;
       }
       .message.user {
-        background: #e3f2fd;
-        border-left: 4px solid #2196f3;
-        margin-left: 50px;
+        background: rgba(33, 150, 243, 0.05);
+        border-left: 3px solid rgba(33, 150, 243, 0.6);
+        margin-left: 20px;
+        backdrop-filter: blur(8px);
       }
       .message.assistant {
-        background: #f8f9fa;
-        border-left: 4px solid #4caf50;
-        margin-right: 50px;
+        background: rgba(76, 175, 80, 0.05);
+        border-left: 3px solid rgba(76, 175, 80, 0.6);
+        margin-right: 20px;
+        backdrop-filter: blur(8px);
       }
       .message-header {
-        font-weight: bold;
-        margin-bottom: 8px;
-        color: #333;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: rgba(51, 51, 51, 0.9);
+        font-size: 0.9em;
       }
       .input-area {
         display: flex;
-        gap: 10px;
+        gap: 8px;
         align-items: center;
-        padding: 10px;
-        background: #fff;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        margin-top: 10px;
+        padding: 8px 12px;
+        background: transparent;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+        margin: 0;
+        -webkit-app-region: no-drag;
       }
       .input-area input {
         flex: 1;
-        padding: 12px 15px;
-        border: 2px solid #2196f3;
-        border-radius: 25px;
-        font-size: 14px;
+        padding: 8px 12px;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+        font-size: 13px;
         outline: none;
         transition: border-color 0.3s;
-        background: white;
+        background: rgba(255, 255, 255, 0.7);
+        -webkit-app-region: no-drag;
+        backdrop-filter: blur(10px);
       }
       .input-area input:focus {
         border-color: #2196f3;
       }
       .input-area button {
-        padding: 12px 25px;
+        padding: 8px 16px;
         background: #2196f3;
         color: white;
         border: none;
-        border-radius: 25px;
+        border-radius: 6px;
         cursor: pointer;
-        font-size: 14px;
+        font-size: 13px;
         transition: background-color 0.3s;
+        -webkit-app-region: no-drag;
       }
       .input-area button:hover:not(:disabled) {
         background: #1976d2;
@@ -228,10 +318,13 @@ export class ChatWindowManager {
         cursor: not-allowed;
       }
       .status {
-        margin-top: 10px;
-        padding: 10px;
-        border-radius: 5px;
-        font-size: 14px;
+        margin: 0;
+        padding: 4px 12px;
+        border-radius: 0;
+        font-size: 12px;
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(10px);
       }
       .status.loading {
         background: #fff3cd;
@@ -249,9 +342,10 @@ export class ChatWindowManager {
         border: 1px solid #c3e6cb;
       }
       .timestamp {
-        color: #666;
-        font-size: 0.8em;
-        margin-top: 5px;
+        color: rgba(102, 102, 102, 0.7);
+        font-size: 0.75em;
+        margin-top: 4px;
+        opacity: 0.9;
       }
     `;
   }
@@ -262,10 +356,95 @@ export class ChatWindowManager {
       const conversationId = '${conversationId}';
       let isProcessing = false;
       
+      console.log('Chat window initialized with conversation ID:', conversationId);
+      console.log('Initial messages:', window.initialMessages);
+      
       const chatInput = document.getElementById('chatInput');
       const sendButton = document.getElementById('sendButton');
       const status = document.getElementById('status');
       const messages = document.getElementById('messages');
+      const closeBtn = document.getElementById('close-btn');
+      const headerTitle = document.getElementById('header-title');
+      const headerKeywords = document.getElementById('header-keywords');
+      
+      console.log('Header keywords element:', headerKeywords);
+      
+      // Extract keywords from initial prompt
+      if (window.initialMessages && window.initialMessages.length > 0) {
+        const firstMessage = window.initialMessages[0];
+        if (firstMessage && firstMessage.content) {
+          console.log('Extracting keywords from:', firstMessage.content);
+          const keywords = extractKeywords(firstMessage.content);
+          console.log('Extracted keywords:', keywords);
+          if (keywords.length > 0) {
+            headerKeywords.textContent = keywords.join(' • ');
+            console.log('Set keywords text:', headerKeywords.textContent);
+          } else {
+            headerKeywords.textContent = 'general chat';
+            console.log('No keywords found, using fallback');
+          }
+        } else {
+          headerKeywords.textContent = 'new conversation';
+          console.log('No initial message, using fallback');
+        }
+      } 
+      // else {
+      //   headerKeywords.textContent = 'loading...';
+      //   console.log('No initial messages, using loading fallback');
+      // }
+      
+      // Test if the element is working - this should always show
+      // if (headerKeywords) {
+      //   console.log('Keywords element found and working');
+      //   // Set a test value if no keywords were set
+      //   if (!headerKeywords.textContent || headerKeywords.textContent === '') {
+      //     headerKeywords.textContent = 'test keywords';
+      //     console.log('Set test keywords');
+      //   }
+      // } else {
+      //   console.error('Header keywords element not found!');
+      // }
+      
+      // Function to extract key words from prompt
+      function extractKeywords(text) {
+        const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their']);
+        
+        // Clean and split text into words
+        const words = text.toLowerCase()
+          .replace(/[^\w\s]/g, ' ')
+          .split(/\s+/)
+          .filter(word => word.length > 2 && !stopWords.has(word));
+        
+        // Count word frequency
+        const wordCount = {};
+        words.forEach(word => {
+          wordCount[word] = (wordCount[word] || 0) + 1;
+        });
+        
+        // Get top words, prioritizing longer words and avoiding common patterns
+        const topWords = Object.entries(wordCount)
+          .sort((a, b) => {
+            // Prioritize by frequency, then by length
+            if (b[1] !== a[1]) return b[1] - a[1];
+            return b[0].length - a[0].length;
+          })
+          .slice(0, 4)
+          .map(([word]) => word)
+          .filter(word => word.length > 3); // Only include words longer than 3 characters
+        
+        // If we don't have enough meaningful words, include some shorter ones
+        if (topWords.length < 2) {
+          const additionalWords = Object.entries(wordCount)
+            .filter(([word]) => word.length >= 3)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([word]) => word);
+          
+          topWords.push(...additionalWords.filter(word => !topWords.includes(word)));
+        }
+        
+        return topWords.slice(0, 3); // Return max 3 keywords
+      }
       
       const setStatus = (message, type) => {
         status.textContent = message;
@@ -296,7 +475,14 @@ export class ChatWindowManager {
         \`;
         
         messages.appendChild(messageDiv);
-        messages.scrollTop = messages.scrollHeight;
+        
+        // Smooth scroll to bottom
+        setTimeout(() => {
+          messages.scrollTo({
+            top: messages.scrollHeight,
+            behavior: 'smooth'
+          });
+        }, 100);
       };
       
       const sendMessage = async () => {
@@ -306,14 +492,17 @@ export class ChatWindowManager {
           return;
         }
 
+        console.log('Sending message:', message, 'to conversation:', conversationId);
         setProcessing(true);
         chatInput.value = '';
         
         addMessage('user', message, Date.now());
 
-        if (window.electronAPI && window.electronAPI.sendChatMessage) {
+        if (window.electronAPI && window.electronAPI.chat && window.electronAPI.chat.sendChatMessage) {
           try {
-            const response = await window.electronAPI.sendChatMessage(conversationId, message);
+            console.log('Calling sendChatMessage with:', conversationId, message);
+            const response = await window.electronAPI.chat.sendChatMessage(conversationId, message);
+            console.log('Received response:', response);
             
             if (response.success) {
               addMessage('assistant', response.data, Date.now());
@@ -329,6 +518,7 @@ export class ChatWindowManager {
             setProcessing(false);
           }
         } else {
+          console.error('Chat API not available:', window.electronAPI);
           setStatus('❌ Chat functionality not available', 'error');
           setProcessing(false);
         }
@@ -341,7 +531,32 @@ export class ChatWindowManager {
         }
       });
       
+      closeBtn.addEventListener('click', () => {
+        if (window.electronAPI && window.electronAPI.closeWindow) {
+          window.electronAPI.closeWindow();
+        } else {
+          window.close();
+        }
+      });
+      
       chatInput.focus();
+      
+      // Ensure proper wheel event handling for touchpad scrolling
+      messages.addEventListener('wheel', (e) => {
+        // Allow default wheel behavior for smooth scrolling
+        e.stopPropagation();
+      }, { passive: true });
+      
+      // Scroll to bottom on initial load
+      setTimeout(() => {
+        if (messages.scrollHeight > messages.clientHeight) {
+          messages.scrollTo({
+            top: messages.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+      }, 200);
+      
       console.log('🤖 Chat window loaded successfully!');
     `;
   }

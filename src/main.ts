@@ -213,7 +213,8 @@ ipcMain.handle('chat:send-message', async (event, message: string) => {
 ipcMain.handle('chat:create-window', (event, message: string, response: string) => {
   try {
     const chatWindowManager = ChatWindowManager.getInstance();
-    chatWindowManager.createChatWindow(message, response);
+    const parentWindow = BrowserWindow.fromWebContents(event.sender);
+    chatWindowManager.createChatWindow(message, response, parentWindow);
     return true;
   } catch (error) {
     console.error('Failed to create chat window:', error);
@@ -221,30 +222,57 @@ ipcMain.handle('chat:create-window', (event, message: string, response: string) 
   }
 });
 
+// Handle window close request
+ipcMain.handle('window:close', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    window.close();
+  }
+});
+
 // Handle sending chat messages in the new window
 ipcMain.handle('chat:send-message-to-conversation', async (event, conversationId: string, message: string) => {
   try {
+    console.log('🤖 Chat message received:', { conversationId, message });
+    
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OpenAI API key not found. Please add OPENAI_API_KEY to your .env file.');
     }
 
+    // Import conversation manager
+    const { conversationManager } = await import('./chat/ConversationManager');
+    
+    // Add the user message to the conversation first
+    conversationManager.addMessage(conversationId, 'user', message);
+    
+    // Get the full conversation history
+    const conversation = conversationManager.getConversation(conversationId);
+    if (!conversation) {
+      throw new Error('Conversation not found');
+    }
+
+    console.log('📝 Conversation history:', conversation.history);
+
+    // Convert conversation history to OpenAI format
+    const messages = conversation.history.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+
+    console.log('🚀 Sending to OpenAI with messages:', messages);
+
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "user",
-          content: message
-        }
-      ],
+      messages: messages,
       max_tokens: 1000,
       temperature: 0.7,
     });
 
     const response = completion.choices[0]?.message?.content || "Sorry, I couldn't process your message right now. Please try again.";
 
-    // Add message to conversation
-    const { conversationManager } = await import('./chat/ConversationManager');
-    conversationManager.addMessage(conversationId, 'user', message);
+    console.log('✅ OpenAI response received:', response);
+
+    // Add the assistant's response to the conversation
     conversationManager.addMessage(conversationId, 'assistant', response);
 
     return {
@@ -252,7 +280,7 @@ ipcMain.handle('chat:send-message-to-conversation', async (event, conversationId
       data: response
     };
   } catch (error) {
-    console.error('Chat error:', error);
+    console.error('❌ Chat error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
