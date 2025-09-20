@@ -101,7 +101,8 @@ body {
 
 /* Content Area */
 .clipboard-content,
-.grammar-content {
+.grammar-content,
+.chat-content {
   flex: 1;
   padding: 16px 20px;
   display: flex;
@@ -119,7 +120,8 @@ body {
 }
 
 #clipboard-input,
-#grammar-input {
+#grammar-input,
+#chat-input {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid rgba(0, 0, 0, 0.2);
@@ -134,13 +136,15 @@ body {
 }
 
 #clipboard-input:focus,
-#grammar-input:focus {
+#grammar-input:focus,
+#chat-input:focus {
   border-color: #007AFF;
   box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
 }
 
 #clipboard-input::placeholder,
-#grammar-input::placeholder {
+#grammar-input::placeholder,
+#chat-input::placeholder {
   color: #999;
 }
 
@@ -368,6 +372,10 @@ body {
   background: #FF3B30;
 }
 
+.toast-info {
+  background: #007AFF;
+}
+
 .toast-message.fade-out {
   animation: slideOut 0.3s ease-in forwards;
 }
@@ -555,6 +563,8 @@ input:checked + .slider:before {
 }
 
 
+/* Chat Content Styles - Simplified for new window approach */
+
 /* Responsive adjustments */
 @media (max-height: 400px) {
   .overlay-container {
@@ -568,5 +578,10 @@ input:checked + .slider:before {
   
   #clipboard-input {
     min-height: 40px;
+  }
+  
+  .chat-content {
+    padding: 12px;
+    gap: 12px;
   }
 }
