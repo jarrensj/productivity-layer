@@ -21,6 +21,7 @@
         <button class="tab-btn" data-tab="links">Links</button>
         <button class="tab-btn" data-tab="tasks">Tasks</button>
         <button class="tab-btn" data-tab="chat">Chat</button>
+        <button class="tab-btn" data-tab="images">Images</button>
       </div>
       
       <!-- Clipboard Tab Content -->
@@ -108,6 +109,38 @@
           </div>
         </div>
       </div>
+
+      <!-- Images Tab Content -->
+      <div id="images-tab" class="tab-content">
+        <div class="images-content">
+          <div class="image-upload-section">
+            <div class="upload-area" id="image-upload-area">
+              <div class="upload-placeholder">
+                <p>Drop an image here or click to upload</p>
+                <input type="file" id="image-file-input" accept="image/*" style="display: none;">
+              </div>
+              <div class="current-image-container" id="current-image-container" style="display: none;">
+                <img id="current-image" alt="Current image">
+                <div class="image-actions">
+                  <button id="change-image" class="btn btn-secondary">Change Image</button>
+                  <button id="clear-image" class="btn btn-danger">Clear</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="prompt-section">
+            <div class="input-section">
+              <textarea id="image-prompt" placeholder="Describe how you want to modify or generate your image…" rows="3"></textarea>
+              <button id="generate-image" class="btn btn-primary">Generate Image</button>
+            </div>
+          </div>
+          
+          <div class="image-results-section">
+            <div id="image-results" class="image-results">Upload an image and enter a prompt to get started.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Settings Page View -->
@@ -188,6 +221,16 @@
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="chat-tab-toggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-item">
+            <div class="setting-description">
+              <strong>Images Tab</strong>
+              <p>Upload and generate images using AI-powered image generation.</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="images-tab-toggle" checked>
               <span class="slider"></span>
             </label>
           </div>
