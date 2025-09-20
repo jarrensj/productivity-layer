@@ -135,6 +135,8 @@ class ClipboardManager {
       // Show feedback message based on whether it was a duplicate
       if (result.savedItem && (result.savedItem as any).isDuplicate) {
         this.showMessage('Item already exists in clipboard history', 'warning');
+        // Highlight the existing item
+        this.highlightExistingItem(result.savedItem.id);
       } else {
         this.showMessage('Item saved to clipboard history', 'success');
       }
@@ -241,6 +243,19 @@ class ClipboardManager {
       element.textContent = originalText;
       element.classList.remove('feedback');
     }, 1000);
+  }
+
+  private highlightExistingItem(itemId: string) {
+    // Find the item element and add highlight
+    const itemElement = document.querySelector(`[data-id="${itemId}"]`);
+    if (itemElement) {
+      itemElement.classList.add('highlight-existing');
+      
+      // Remove highlight after animation completes
+      setTimeout(() => {
+        itemElement.classList.remove('highlight-existing');
+      }, 2000);
+    }
   }
 
   private showMessage(message: string, type: 'success' | 'warning' | 'error') {
