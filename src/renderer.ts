@@ -4,6 +4,7 @@
  */
 
 import './index.css';
+import { Utils } from './utils';
 
 // Type definitions for the exposed API
 interface ClipboardItem {
@@ -65,7 +66,7 @@ declare global {
 
 class DragToReorderUtil {
   private draggedElement: HTMLElement | null = null;
-  private draggedIndex: number = -1;
+  private draggedIndex = -1;
 
   setupDragAndDrop<T>(
     container: HTMLElement,
@@ -190,21 +191,11 @@ class ClipboardManager {
   }
 
   private saveToLocalStorage() {
-    try {
-      localStorage.setItem('clipboardItems', JSON.stringify(this.items));
-    } catch (error) {
-      console.error('Failed to save to localStorage:', error);
-    }
+    Utils.saveToLocalStorage('clipboardItems', this.items);
   }
 
   private loadFromLocalStorage(): ClipboardItem[] {
-    try {
-      const stored = localStorage.getItem('clipboardItems');
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('Failed to load from localStorage:', error);
-      return [];
-    }
+    return Utils.loadFromLocalStorage<ClipboardItem>('clipboardItems');
   }
 
   private setupEventListeners() {
@@ -461,13 +452,13 @@ class ClipboardManager {
 
   private renderItem(item: ClipboardItem): string {
     const preview = item.text.length > 100 ? item.text.substring(0, 100) + '...' : item.text;
-    const timeAgo = this.formatTimeAgo(item.timestamp);
+    const timeAgo = Utils.formatTimeAgo(item.timestamp);
     
     return `
       <div class="clipboard-item" data-id="${item.id}" draggable="true">
         <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
         <div class="item-content">
-          <div class="item-text" title="${this.escapeHtml(item.text)}">${this.escapeHtml(preview)}</div>
+          <div class="item-text" title="${Utils.escapeHtml(item.text)}">${Utils.escapeHtml(preview)}</div>
           <div class="item-meta">${timeAgo}</div>
         </div>
         <div class="item-actions">
@@ -476,26 +467,6 @@ class ClipboardManager {
         </div>
       </div>
     `;
-  }
-
-  private formatTimeAgo(timestamp: number): string {
-    const now = Date.now();
-    const diff = now - timestamp;
-    
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-    
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    if (minutes > 0) return `${minutes}m ago`;
-    return 'Just now';
-  }
-
-  private escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
   }
 
   private showFeedback(element: HTMLElement, message: string) {
@@ -509,63 +480,18 @@ class ClipboardManager {
     }, 1000);
   }
 
-
   private reorderItems(fromIndex: number, toIndex: number) {
-    if (fromIndex === toIndex) return;
-    
-    // Create a new array with the item moved
-    const newItems = [...this.items];
-    const [movedItem] = newItems.splice(fromIndex, 1);
-    newItems.splice(toIndex, 0, movedItem);
-    
-    // Update the items array
-    this.items = newItems;
-    
-    // Save to localStorage and re-render
+    this.items = Utils.reorderArray(this.items, fromIndex, toIndex);
     this.saveToLocalStorage();
     this.renderItems();
   }
 
   private highlightExistingItem(itemId: string) {
-    // Find the item element and add highlight
-    const itemElement = document.querySelector(`[data-id="${itemId}"]`);
-    if (itemElement) {
-      itemElement.classList.add('highlight-existing');
-      
-      // Remove highlight after animation completes
-      setTimeout(() => {
-        itemElement.classList.remove('highlight-existing');
-      }, 2000);
-    }
+    Utils.highlightExistingItem(itemId);
   }
 
   private showMessage(message: string, type: 'success' | 'warning' | 'error') {
-    // Remove any existing message
-    const existingMessage = document.querySelector('.toast-message');
-    if (existingMessage) {
-      existingMessage.remove();
-    }
-
-    // Create toast message
-    const toast = document.createElement('div');
-    toast.className = `toast-message toast-${type}`;
-    toast.textContent = message;
-
-    // Add to container
-    const container = document.querySelector('.overlay-container');
-    if (container) {
-      container.appendChild(toast);
-
-      // Auto-remove after 3 seconds
-      setTimeout(() => {
-        if (toast.parentNode) {
-          toast.classList.add('fade-out');
-          setTimeout(() => {
-            toast.remove();
-          }, 300);
-        }
-      }, 3000);
-    }
+    Utils.showMessage(message, type);
   }
 
   private navigateToSettings() {
@@ -762,7 +688,7 @@ class ClipboardManager {
 
 // Tab Management Class
 class TabManager {
-  private activeTab: string = 'clipboard';
+  private activeTab = 'clipboard';
   
   constructor() {
     this.init();
@@ -915,21 +841,11 @@ class LinksManager {
   }
 
   private saveToLocalStorage() {
-    try {
-      localStorage.setItem('linkItems', JSON.stringify(this.items));
-    } catch (error) {
-      console.error('Failed to save to localStorage:', error);
-    }
+    Utils.saveToLocalStorage('linkItems', this.items);
   }
 
   private loadFromLocalStorage(): LinkItem[] {
-    try {
-      const stored = localStorage.getItem('linkItems');
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('Failed to load from localStorage:', error);
-      return [];
-    }
+    return Utils.loadFromLocalStorage<LinkItem>('linkItems');
   }
 
   private validateUrl(url: string): boolean {
@@ -1095,14 +1011,14 @@ class LinksManager {
   }
 
   private renderItem(item: LinkItem): string {
-    const timeAgo = this.formatTimeAgo(item.timestamp);
+    const timeAgo = Utils.formatTimeAgo(item.timestamp);
     
     return `
-      <div class="link-item" data-id="${item.id}" title="Click to open ${this.escapeHtml(item.url)}" draggable="true">
+      <div class="link-item" data-id="${item.id}" title="Click to open ${Utils.escapeHtml(item.url)}" draggable="true">
         <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
         <div class="item-content">
-          <div class="item-text">${this.escapeHtml(item.name)}</div>
-          <div class="item-meta">${this.escapeHtml(item.url)} • ${timeAgo}</div>
+          <div class="item-text">${Utils.escapeHtml(item.name)}</div>
+          <div class="item-meta">${Utils.escapeHtml(item.url)} • ${timeAgo}</div>
         </div>
         <div class="item-actions">
           <button class="delete-btn btn btn-small btn-danger" data-id="${item.id}" title="Delete link">×</button>
@@ -1112,81 +1028,17 @@ class LinksManager {
   }
 
   private reorderItems(fromIndex: number, toIndex: number) {
-    if (fromIndex === toIndex) return;
-    
-    // Create a new array with the item moved
-    const newItems = [...this.items];
-    const [movedItem] = newItems.splice(fromIndex, 1);
-    newItems.splice(toIndex, 0, movedItem);
-    
-    // Update the items array
-    this.items = newItems;
-    
-    // Save to localStorage and re-render
+    this.items = Utils.reorderArray(this.items, fromIndex, toIndex);
     this.saveToLocalStorage();
     this.renderItems();
   }
 
-  private formatTimeAgo(timestamp: number): string {
-    const now = Date.now();
-    const diff = now - timestamp;
-    
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-    
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    if (minutes > 0) return `${minutes}m ago`;
-    return 'Just now';
-  }
-
-  private escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
   private highlightExistingItem(itemId: string) {
-    // Find the item element and add highlight
-    const itemElement = document.querySelector(`[data-id="${itemId}"]`);
-    if (itemElement) {
-      itemElement.classList.add('highlight-existing');
-      
-      // Remove highlight after animation completes
-      setTimeout(() => {
-        itemElement.classList.remove('highlight-existing');
-      }, 2000);
-    }
+    Utils.highlightExistingItem(itemId);
   }
 
   private showMessage(message: string, type: 'success' | 'warning' | 'error') {
-    // Remove any existing message
-    const existingMessage = document.querySelector('.toast-message');
-    if (existingMessage) {
-      existingMessage.remove();
-    }
-
-    // Create toast message
-    const toast = document.createElement('div');
-    toast.className = `toast-message toast-${type}`;
-    toast.textContent = message;
-
-    // Add to container (find the currently visible container)
-    const container = document.querySelector('.overlay-container:not([style*="display: none"])');
-    if (container) {
-      container.appendChild(toast);
-
-      // Auto-remove after 3 seconds
-      setTimeout(() => {
-        if (toast.parentNode) {
-          toast.classList.add('fade-out');
-          setTimeout(() => {
-            toast.remove();
-          }, 300);
-        }
-      }, 3000);
-    }
+    Utils.showMessage(message, type);
   }
 }
 
@@ -1223,21 +1075,11 @@ class TasksManager {
   }
 
   private saveToLocalStorage() {
-    try {
-      localStorage.setItem('taskItems', JSON.stringify(this.items));
-    } catch (error) {
-      console.error('Failed to save to localStorage:', error);
-    }
+    Utils.saveToLocalStorage('taskItems', this.items);
   }
 
   private loadFromLocalStorage(): TaskItem[] {
-    try {
-      const stored = localStorage.getItem('taskItems');
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('Failed to load from localStorage:', error);
-      return [];
-    }
+    return Utils.loadFromLocalStorage<TaskItem>('taskItems');
   }
 
   private setupEventListeners() {
@@ -1384,7 +1226,7 @@ class TasksManager {
   }
 
   private renderItem(item: TaskItem): string {
-    const timeAgo = this.formatTimeAgo(item.timestamp);
+    const timeAgo = Utils.formatTimeAgo(item.timestamp);
     const isEditing = this.editingTaskId === item.id;
     
     return `
@@ -1392,8 +1234,8 @@ class TasksManager {
         <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
         <div class="task-checkbox ${item.completed ? 'checked' : ''}" data-id="${item.id}" title="${item.completed ? 'Mark incomplete' : 'Mark complete'}"></div>
         <div class="item-content">
-          <div class="item-text" title="${this.escapeHtml(item.text)}">${this.escapeHtml(item.text)}</div>
-          <input type="text" class="task-edit-input" data-id="${item.id}" value="${this.escapeHtml(item.text)}" />
+          <div class="item-text" title="${Utils.escapeHtml(item.text)}">${Utils.escapeHtml(item.text)}</div>
+          <input type="text" class="task-edit-input" data-id="${item.id}" value="${Utils.escapeHtml(item.text)}" />
           <div class="item-meta">${timeAgo}</div>
         </div>
         <div class="task-actions">
@@ -1468,68 +1310,13 @@ class TasksManager {
   }
 
   private reorderItems(fromIndex: number, toIndex: number) {
-    if (fromIndex === toIndex) return;
-    
-    // Create a new array with the item moved
-    const newItems = [...this.items];
-    const [movedItem] = newItems.splice(fromIndex, 1);
-    newItems.splice(toIndex, 0, movedItem);
-    
-    // Update the items array
-    this.items = newItems;
-    
-    // Save to localStorage and re-render
+    this.items = Utils.reorderArray(this.items, fromIndex, toIndex);
     this.saveToLocalStorage();
     this.renderItems();
   }
 
-  private formatTimeAgo(timestamp: number): string {
-    const now = Date.now();
-    const diff = now - timestamp;
-    
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-    
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    if (minutes > 0) return `${minutes}m ago`;
-    return 'Just now';
-  }
-
-  private escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
   private showMessage(message: string, type: 'success' | 'warning' | 'error') {
-    // Remove any existing message
-    const existingMessage = document.querySelector('.toast-message');
-    if (existingMessage) {
-      existingMessage.remove();
-    }
-
-    // Create toast message
-    const toast = document.createElement('div');
-    toast.className = `toast-message toast-${type}`;
-    toast.textContent = message;
-
-    // Add to container (find the currently visible container)
-    const container = document.querySelector('.overlay-container:not([style*="display: none"])');
-    if (container) {
-      container.appendChild(toast);
-
-      // Auto-remove after 3 seconds
-      setTimeout(() => {
-        if (toast.parentNode) {
-          toast.classList.add('fade-out');
-          setTimeout(() => {
-            toast.remove();
-          }, 300);
-        }
-      }, 3000);
-    }
+    Utils.showMessage(message, type);
   }
 }
 
