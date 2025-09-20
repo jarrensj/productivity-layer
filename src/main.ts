@@ -159,6 +159,8 @@ ipcMain.handle('grammar:check', async (event, text: string) => {
 1. Words that should be written as one word or two words (like "everyday" vs "every day", "into" vs "in to", "cannot" vs "can not", "maybe" vs "may be", etc.)
 2. Words that should be hyphenated or not hyphenated (like "well-known" vs "well known", "twenty-one" vs "twenty one", "self-aware" vs "self aware", "up-to-date" vs "up to date", compound adjectives, etc.)
 
+For each correction you suggest, please explain why the correction is needed and provide the reasoning behind the grammar rule.
+
 Text to check: "${text}"`
         }
       ],
