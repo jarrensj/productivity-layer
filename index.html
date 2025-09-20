@@ -6,7 +6,26 @@
   </head>
   <body>
     <div class="overlay-container">
-      <h1>Productivity Overlay</h1>
+      <div class="header">
+        <h1>Productivity Overlay</h1>
+        <div class="header-controls">
+          <button id="clear-all" class="btn btn-secondary" title="Clear all items">Clear All</button>
+        </div>
+      </div>
+      
+      <div class="clipboard-content">
+        <div class="input-section">
+          <textarea id="clipboard-input" placeholder="Paste or type text to save..." rows="3"></textarea>
+          <button id="save-input" class="btn btn-primary">Save</button>
+        </div>
+        
+        <div class="items-section">
+          <div class="items-header">
+            <span>Saved Items (<span id="items-count">0</span>)</span>
+          </div>
+          <div id="clipboard-items" class="clipboard-items"></div>
+        </div>
+      </div>
     </div>
     <script type="module" src="/src/renderer.ts"></script>
   </body>

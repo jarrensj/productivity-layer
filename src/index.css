@@ -13,22 +13,315 @@ body {
 
 .overlay-container {
   width: 400px;
-  height: 300px;
-  background: rgba(255, 255, 255, 0.9);
+  height: 500px;
+  background: rgba(255, 255, 255, 0.95);
   border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  padding: 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(10px);
 }
 
-h1 {
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px 12px 0 0;
+  -webkit-app-region: drag;
+}
+
+.header h1 {
   color: #333;
-  font-size: 24px;
-  margin-bottom: 16px;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
 }
 
-p {
+.header-controls {
+  display: flex;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+/* Content Area */
+.clipboard-content {
+  flex: 1;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+}
+
+/* Input Section */
+.input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#clipboard-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 60px;
+  background: rgba(255, 255, 255, 0.8);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+#clipboard-input:focus {
+  border-color: #007AFF;
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+}
+
+#clipboard-input::placeholder {
+  color: #999;
+}
+
+/* Items Section */
+.items-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.items-header {
+  font-size: 14px;
+  font-weight: 600;
   color: #666;
-  font-size: 16px;
-  line-height: 1.5;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.clipboard-items {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.clipboard-items::-webkit-scrollbar {
+  width: 6px;
+}
+
+.clipboard-items::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+}
+
+.clipboard-items::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.clipboard-items::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Clipboard Item */
+.clipboard-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  transition: all 0.2s;
+  gap: 12px;
+}
+
+.clipboard-item:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-text {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.4;
+  word-break: break-word;
+  margin-bottom: 4px;
+}
+
+.item-meta {
+  font-size: 11px;
+  color: #999;
+}
+
+.item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.no-items {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 20px;
+}
+
+/* Buttons */
+.btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  outline: none;
+  font-family: inherit;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-primary {
+  background: #007AFF;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #0056CC;
+}
+
+.btn-secondary {
+  background: rgba(0, 0, 0, 0.1);
+  color: #666;
+}
+
+.btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.15);
+  color: #333;
+}
+
+.btn-danger {
+  background: rgba(255, 59, 48, 0.1);
+  color: #FF3B30;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.btn-danger:hover {
+  background: rgba(255, 59, 48, 0.2);
+}
+
+.btn-small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.btn.feedback {
+  background: #34C759;
+  color: white;
+  transform: scale(0.95);
+}
+
+/* Toast Messages */
+.toast-message {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: white;
+  z-index: 1000;
+  animation: slideIn 0.3s ease-out;
+  max-width: 280px;
+  word-wrap: break-word;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.toast-success {
+  background: #34C759;
+}
+
+.toast-warning {
+  background: #FF9500;
+}
+
+.toast-error {
+  background: #FF3B30;
+}
+
+.toast-message.fade-out {
+  animation: slideOut 0.3s ease-in forwards;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-height: 400px) {
+  .overlay-container {
+    height: 400px;
+  }
+  
+  .clipboard-content {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  
+  #clipboard-input {
+    min-height: 40px;
+  }
 }

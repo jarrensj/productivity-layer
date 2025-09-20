@@ -1,6 +1,7 @@
-import { app, BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen, clipboard, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { randomUUID } from 'crypto';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -11,7 +12,7 @@ const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 400,
-    height: 300,
+    height: 500,
     alwaysOnTop: true,
     frame: false,
     transparent: true,
@@ -67,6 +68,64 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
+});
+
+// Clipboard storage
+interface ClipboardItem {
+  id: string;
+  text: string;
+  timestamp: number;
+}
+
+let savedClipboardItems: ClipboardItem[] = [];
+
+// IPC handlers for clipboard operations
+ipcMain.handle('clipboard:write-text', (event, text: string) => {
+  clipboard.writeText(text);
+  return true;
+});
+
+ipcMain.handle('clipboard:read-text', () => {
+  return clipboard.readText();
+});
+
+ipcMain.handle('clipboard:save-item', (event, text: string) => {
+  // Check if item already exists to avoid duplicates
+  const existingItem = savedClipboardItems.find(item => item.text === text);
+  if (existingItem) {
+    // Return the existing item with a flag indicating it's a duplicate
+    return { ...existingItem, isDuplicate: true };
+  }
+
+  const newItem: ClipboardItem = {
+    id: randomUUID(),
+    text,
+    timestamp: Date.now(),
+  };
+  
+  // Add to beginning of array (most recent first)
+  savedClipboardItems.unshift(newItem);
+  
+  // Limit to 50 items to prevent memory issues
+  if (savedClipboardItems.length > 50) {
+    savedClipboardItems = savedClipboardItems.slice(0, 50);
+  }
+  
+  return newItem;
+});
+
+ipcMain.handle('clipboard:get-items', () => {
+  return savedClipboardItems;
+});
+
+ipcMain.handle('clipboard:delete-item', (event, id: string) => {
+  savedClipboardItems = savedClipboardItems.filter(item => item.id !== id);
+  return true;
+});
+
+ipcMain.handle('clipboard:clear-all', () => {
+  savedClipboardItems = [];
+  return true;
 });
 
 // In this file you can include the rest of your app's specific main process
