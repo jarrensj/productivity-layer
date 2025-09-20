@@ -105,6 +105,22 @@ class ClipboardManager {
       }
     });
 
+    // Clear all links button
+    document.getElementById('clear-all-links')?.addEventListener('click', async () => {
+      if (confirm('Clear all saved links?')) {
+        try {
+          await window.electronAPI.links.clearAllLinks();
+          // Find the links manager instance and update it
+          const linksEvent = new CustomEvent('clearAllLinks');
+          document.dispatchEvent(linksEvent);
+          this.showMessage('All links cleared successfully', 'success');
+        } catch (error) {
+          console.error('Failed to clear links:', error);
+          this.showMessage('Failed to clear links', 'error');
+        }
+      }
+    });
+
     // Tab visibility toggles
     document.getElementById('clipboard-tab-toggle')?.addEventListener('change', (e) => {
       const toggle = e.target as HTMLInputElement;
@@ -638,6 +654,15 @@ class LinksManager {
   private async init() {
     this.setupEventListeners();
     await this.loadSavedItems();
+    this.setupGlobalEventListeners();
+  }
+
+  private setupGlobalEventListeners() {
+    document.addEventListener('clearAllLinks', async () => {
+      this.items = [];
+      this.saveToLocalStorage();
+      this.renderItems();
+    });
   }
 
   private saveToLocalStorage() {
