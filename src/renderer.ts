@@ -288,9 +288,131 @@ class ClipboardManager {
   }
 }
 
-// Initialize the clipboard manager when DOM is ready
+// Tab Management Class
+class TabManager {
+  private activeTab: string = 'clipboard';
+  
+  constructor() {
+    this.init();
+  }
+  
+  private init() {
+    this.setupTabListeners();
+  }
+  
+  private setupTabListeners() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const tabName = target.dataset.tab;
+        if (tabName) {
+          this.switchTab(tabName);
+        }
+      });
+    });
+  }
+  
+  private switchTab(tabName: string) {
+    if (this.activeTab === tabName) return;
+    
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    document.querySelector(`[data-tab="${tabName}"]`)?.classList.add('active');
+    
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(content => {
+      content.classList.remove('active');
+    });
+    document.getElementById(`${tabName}-tab`)?.classList.add('active');
+    
+    this.activeTab = tabName;
+  }
+}
+
+// Grammar Checker Class
+class GrammarChecker {
+  private grammarInput: HTMLTextAreaElement;
+  private grammarResults: HTMLElement;
+  private checkButton: HTMLElement;
+  
+  constructor() {
+    this.grammarInput = document.getElementById('grammar-input') as HTMLTextAreaElement;
+    this.grammarResults = document.getElementById('grammar-results')!;
+    this.checkButton = document.getElementById('check-grammar')!;
+    
+    this.init();
+  }
+  
+  private init() {
+    this.setupEventListeners();
+  }
+  
+  private setupEventListeners() {
+    this.checkButton.addEventListener('click', () => {
+      this.checkGrammar();
+    });
+    
+    // Allow Ctrl/Cmd + Enter to check grammar
+    this.grammarInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        this.checkGrammar();
+      }
+    });
+  }
+  
+  private async checkGrammar() {
+    const text = this.grammarInput.value.trim();
+    
+    if (!text) {
+      this.showResults('Please enter some text to check.', 'error');
+      return;
+    }
+    
+    // Show loading state
+    this.showResults('Checking grammar...', 'loading');
+    this.checkButton.textContent = 'Checking...';
+    this.checkButton.setAttribute('disabled', 'true');
+    
+    try {
+      // Simple grammar check implementation
+      const result = await this.performGrammarCheck(text);
+      this.showResults(result, 'success');
+    } catch (error) {
+      this.showResults('Error checking grammar. Please try again.', 'error');
+    } finally {
+      this.checkButton.textContent = 'Check Grammar';
+      this.checkButton.removeAttribute('disabled');
+    }
+  }
+  
+  private async performGrammarCheck(text: string): Promise<string> {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Return placeholder results
+    const result = "This is placeholder results for the grammar checker.";
+    
+    return result;
+  }
+  
+  private showResults(content: string, type: 'success' | 'error' | 'loading') {
+    this.grammarResults.innerHTML = content;
+    this.grammarResults.className = `grammar-results ${type}`;
+  }
+}
+
+// Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  // Wait for electronAPI to be available
+  // Initialize tab manager
+  new TabManager();
+  
+  // Initialize grammar checker
+  new GrammarChecker();
+  
+  // Wait for electronAPI to be available for clipboard functionality
   if (window.electronAPI) {
     new ClipboardManager();
   } else {
