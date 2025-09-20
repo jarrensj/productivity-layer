@@ -46,16 +46,120 @@ declare global {
   }
 }
 
+class DragToReorderUtil {
+  private draggedElement: HTMLElement | null = null;
+  private draggedIndex: number = -1;
+
+  setupDragAndDrop<T>(
+    container: HTMLElement,
+    itemSelector: string,
+    items: T[],
+    onReorder: (fromIndex: number, toIndex: number) => void
+  ) {
+    container.querySelectorAll(itemSelector).forEach((item, index) => {
+      const element = item as HTMLElement;
+      
+      element.addEventListener('dragstart', (e) => {
+        this.draggedElement = element;
+        this.draggedIndex = index;
+        element.classList.add('dragging');
+        
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/html', element.outerHTML);
+        }
+      });
+
+      element.addEventListener('dragend', () => {
+        element.classList.remove('dragging');
+        this.draggedElement = null;
+        this.draggedIndex = -1;
+        
+        // Remove all drop indicators
+        container.querySelectorAll(itemSelector).forEach(item => {
+          item.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+      });
+
+      element.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (this.draggedElement && this.draggedElement !== element) {
+          const rect = element.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+          
+          // Remove previous indicators from all items
+          container.querySelectorAll(itemSelector).forEach(item => {
+            item.classList.remove('drag-over-top', 'drag-over-bottom');
+          });
+          
+          const threshold = rect.height * 0.3;
+          if (e.clientY < midY - threshold) {
+            element.classList.add('drag-over-top');
+          } else if (e.clientY > midY + threshold) {
+            element.classList.add('drag-over-bottom');
+          } else {
+            if (e.clientY < midY) {
+              element.classList.add('drag-over-top');
+            } else {
+              element.classList.add('drag-over-bottom');
+            }
+          }
+        }
+      });
+
+      element.addEventListener('dragleave', (e) => {
+        const rect = element.getBoundingClientRect();
+        if (e.clientX < rect.left || e.clientX > rect.right || 
+            e.clientY < rect.top || e.clientY > rect.bottom) {
+          element.classList.remove('drag-over-top', 'drag-over-bottom');
+        }
+      });
+
+      element.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (this.draggedElement && this.draggedElement !== element && this.draggedIndex !== -1) {
+          const rect = element.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+          const dropIndex = index;
+          let newIndex = dropIndex;
+          
+          const threshold = rect.height * 0.3;
+          if (e.clientY < midY - threshold || (e.clientY < midY && e.clientY >= midY - threshold)) {
+            newIndex = dropIndex;
+          } else {
+            newIndex = dropIndex + 1;
+          }
+          
+          if (this.draggedIndex < newIndex) {
+            newIndex--;
+          }
+          
+          if (this.draggedIndex !== newIndex) {
+            onReorder(this.draggedIndex, newIndex);
+          }
+        }
+        
+        // Clean up all indicators
+        container.querySelectorAll(itemSelector).forEach(item => {
+          item.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+      });
+    });
+  }
+}
+
 class ClipboardManager {
   private items: ClipboardItem[] = [];
   private itemsContainer: HTMLElement;
   private itemsCount: HTMLElement;
   private clipboardInput: HTMLTextAreaElement;
+  private dragUtil: DragToReorderUtil;
 
   constructor() {
     this.itemsContainer = document.getElementById('clipboard-items')!;
     this.itemsCount = document.getElementById('items-count')!;
     this.clipboardInput = document.getElementById('clipboard-input') as HTMLTextAreaElement;
+    this.dragUtil = new DragToReorderUtil();
     
     this.init();
   }
@@ -289,7 +393,12 @@ class ClipboardManager {
     });
 
     // Add drag and drop event listeners
-    this.setupDragAndDrop();
+    this.dragUtil.setupDragAndDrop(
+      this.itemsContainer,
+      '.clipboard-item',
+      this.items,
+      (fromIndex: number, toIndex: number) => this.reorderItems(fromIndex, toIndex)
+    );
   }
 
   private renderItem(item: ClipboardItem): string {
@@ -342,105 +451,6 @@ class ClipboardManager {
     }, 1000);
   }
 
-  private setupDragAndDrop() {
-    let draggedElement: HTMLElement | null = null;
-    let draggedIndex: number = -1;
-
-    this.itemsContainer.querySelectorAll('.clipboard-item').forEach((item, index) => {
-      const element = item as HTMLElement;
-      
-      element.addEventListener('dragstart', (e) => {
-        draggedElement = element;
-        draggedIndex = index;
-        element.classList.add('dragging');
-        
-        // Set drag effect
-        if (e.dataTransfer) {
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/html', element.outerHTML);
-        }
-      });
-
-      element.addEventListener('dragend', () => {
-        element.classList.remove('dragging');
-        draggedElement = null;
-        draggedIndex = -1;
-        
-        // Remove all drop indicators
-        this.itemsContainer.querySelectorAll('.clipboard-item').forEach(item => {
-          item.classList.remove('drag-over-top', 'drag-over-bottom');
-        });
-      });
-
-      element.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        if (draggedElement && draggedElement !== element) {
-          const rect = element.getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-          
-          // Remove previous indicators from all items
-          this.itemsContainer.querySelectorAll('.clipboard-item').forEach(item => {
-            item.classList.remove('drag-over-top', 'drag-over-bottom');
-          });
-          
-          const threshold = rect.height * 0.3; // 30% of item height as threshold
-          if (e.clientY < midY - threshold) {
-            element.classList.add('drag-over-top');
-          } else if (e.clientY > midY + threshold) {
-            element.classList.add('drag-over-bottom');
-          } else {
-            // In the middle zone, choose based on which half we're closer to
-            if (e.clientY < midY) {
-              element.classList.add('drag-over-top');
-            } else {
-              element.classList.add('drag-over-bottom');
-            }
-          }
-        }
-      });
-
-      element.addEventListener('dragleave', (e) => {
-        // Only remove indicators if we're actually leaving the element
-        const rect = element.getBoundingClientRect();
-        if (e.clientX < rect.left || e.clientX > rect.right || 
-            e.clientY < rect.top || e.clientY > rect.bottom) {
-          element.classList.remove('drag-over-top', 'drag-over-bottom');
-        }
-      });
-
-      element.addEventListener('drop', (e) => {
-        e.preventDefault();
-        if (draggedElement && draggedElement !== element && draggedIndex !== -1) {
-          const rect = element.getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-          const dropIndex = index;
-          let newIndex = dropIndex;
-          
-          const threshold = rect.height * 0.3;
-          if (e.clientY < midY - threshold || (e.clientY < midY && e.clientY >= midY - threshold)) {
-            newIndex = dropIndex;
-          } else {
-            newIndex = dropIndex + 1;
-          }
-          
-          // Adjust for the dragged item's current position
-          if (draggedIndex < newIndex) {
-            newIndex--;
-          }
-          
-          // Only reorder if the position actually changed
-          if (draggedIndex !== newIndex) {
-            this.reorderItems(draggedIndex, newIndex);
-          }
-        }
-        
-        // Clean up all indicators
-        this.itemsContainer.querySelectorAll('.clipboard-item').forEach(item => {
-          item.classList.remove('drag-over-top', 'drag-over-bottom');
-        });
-      });
-    });
-  }
 
   private reorderItems(fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex) return;
@@ -761,12 +771,14 @@ class LinksManager {
   private itemsCount: HTMLElement;
   private linkNameInput: HTMLInputElement;
   private linkUrlInput: HTMLInputElement;
+  private dragUtil: DragToReorderUtil;
 
   constructor() {
     this.itemsContainer = document.getElementById('links-items')!;
     this.itemsCount = document.getElementById('links-count')!;
     this.linkNameInput = document.getElementById('link-name-input') as HTMLInputElement;
     this.linkUrlInput = document.getElementById('link-url-input') as HTMLInputElement;
+    this.dragUtil = new DragToReorderUtil();
     
     this.init();
   }
@@ -957,7 +969,12 @@ class LinksManager {
     });
 
     // Add drag and drop event listeners
-    this.setupDragAndDrop();
+    this.dragUtil.setupDragAndDrop(
+      this.itemsContainer,
+      '.link-item',
+      this.items,
+      (fromIndex: number, toIndex: number) => this.reorderItems(fromIndex, toIndex)
+    );
   }
 
   private renderItem(item: LinkItem): string {
@@ -975,106 +992,6 @@ class LinksManager {
         </div>
       </div>
     `;
-  }
-
-  private setupDragAndDrop() {
-    let draggedElement: HTMLElement | null = null;
-    let draggedIndex: number = -1;
-
-    this.itemsContainer.querySelectorAll('.link-item').forEach((item, index) => {
-      const element = item as HTMLElement;
-      
-      element.addEventListener('dragstart', (e) => {
-        draggedElement = element;
-        draggedIndex = index;
-        element.classList.add('dragging');
-        
-        // Set drag effect
-        if (e.dataTransfer) {
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/html', element.outerHTML);
-        }
-      });
-
-      element.addEventListener('dragend', () => {
-        element.classList.remove('dragging');
-        draggedElement = null;
-        draggedIndex = -1;
-        
-        // Remove all drop indicators
-        this.itemsContainer.querySelectorAll('.link-item').forEach(item => {
-          item.classList.remove('drag-over-top', 'drag-over-bottom');
-        });
-      });
-
-      element.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        if (draggedElement && draggedElement !== element) {
-          const rect = element.getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-          
-          // Remove previous indicators from all items
-          this.itemsContainer.querySelectorAll('.link-item').forEach(item => {
-            item.classList.remove('drag-over-top', 'drag-over-bottom');
-          });
-          
-          const threshold = rect.height * 0.3; // 30% of item height as threshold
-          if (e.clientY < midY - threshold) {
-            element.classList.add('drag-over-top');
-          } else if (e.clientY > midY + threshold) {
-            element.classList.add('drag-over-bottom');
-          } else {
-            // In the middle zone, choose based on which half we're closer to
-            if (e.clientY < midY) {
-              element.classList.add('drag-over-top');
-            } else {
-              element.classList.add('drag-over-bottom');
-            }
-          }
-        }
-      });
-
-      element.addEventListener('dragleave', (e) => {
-        // Only remove indicators if we're actually leaving the element
-        const rect = element.getBoundingClientRect();
-        if (e.clientX < rect.left || e.clientX > rect.right || 
-            e.clientY < rect.top || e.clientY > rect.bottom) {
-          element.classList.remove('drag-over-top', 'drag-over-bottom');
-        }
-      });
-
-      element.addEventListener('drop', (e) => {
-        e.preventDefault();
-        if (draggedElement && draggedElement !== element && draggedIndex !== -1) {
-          const rect = element.getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-          const dropIndex = index;
-          let newIndex = dropIndex;
-          
-          const threshold = rect.height * 0.3;
-          if (e.clientY < midY - threshold || (e.clientY < midY && e.clientY >= midY - threshold)) {
-            newIndex = dropIndex;
-          } else {
-            newIndex = dropIndex + 1;
-          }
-          
-          // Adjust for the dragged item's current position
-          if (draggedIndex < newIndex) {
-            newIndex--;
-          }
-          
-          // Only reorder if the position actually changed
-          if (draggedIndex !== newIndex) {
-            this.reorderItems(draggedIndex, newIndex);
-          }
-        }
-        
-        // Clean up all indicators
-        this.itemsContainer.querySelectorAll('.link-item').forEach(item => {
-          item.classList.remove('drag-over-top', 'drag-over-bottom');
-        });
-      });
-    });
   }
 
   private reorderItems(fromIndex: number, toIndex: number) {
