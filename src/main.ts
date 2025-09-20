@@ -311,5 +311,25 @@ ipcMain.handle('links:open-link', async (event, url: string) => {
   }
 });
 
+// Window opacity handler
+ipcMain.handle('window:set-opacity', (event, opacity: number) => {
+  try {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window) {
+      // Ensure opacity is within valid range (0.1 to 1.0)
+      const normalizedOpacity = Math.max(0.1, Math.min(1.0, opacity / 100));
+      window.setOpacity(normalizedOpacity);
+      return { success: true };
+    }
+    return { success: false, error: 'Window not found' };
+  } catch (error) {
+    console.error('Failed to set opacity:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to set opacity'
+    };
+  }
+});
+
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.

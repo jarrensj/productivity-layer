@@ -23,4 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     clearAllLinks: () => ipcRenderer.invoke('links:clear-all'),
     openLink: (url: string) => ipcRenderer.invoke('links:open-link', url),
   },
+  window: {
+    setOpacity: (opacity: number) => ipcRenderer.invoke('window:set-opacity', opacity),
+  },
 });

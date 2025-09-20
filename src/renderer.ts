@@ -38,6 +38,9 @@ interface ElectronAPI {
     clearAllLinks: () => Promise<LinkItem[]>;
     openLink: (url: string) => Promise<{success: boolean; error?: string}>;
   };
+  window: {
+    setOpacity: (opacity: number) => Promise<{success: boolean; error?: string}>;
+  };
 }
 
 declare global {
@@ -169,6 +172,7 @@ class ClipboardManager {
     await this.loadSavedItems();
     this.setupKeyboardShortcuts();
     this.loadTabPreferences();
+    this.loadOpacityPreference();
   }
 
   private saveToLocalStorage() {
@@ -272,6 +276,14 @@ class ClipboardManager {
       this.toggleTabVisibility('links', isEnabled);
       this.saveTabPreferences();
       setTimeout(() => this.ensureActiveTab(), 50);
+    });
+
+    // Opacity slider control
+    document.getElementById('opacity-slider')?.addEventListener('input', (e) => {
+      const slider = e.target as HTMLInputElement;
+      const opacity = parseInt(slider.value);
+      this.updateOpacityValue(opacity);
+      this.setWindowOpacity(opacity);
     });
 
     // Save input button
@@ -640,6 +652,55 @@ class ClipboardManager {
     
     // Allow disabling only if at least one tab would remain
     return remainingTabs.length > 0;
+  }
+
+  private updateOpacityValue(opacity: number) {
+    const opacityValue = document.getElementById('opacity-value');
+    if (opacityValue) {
+      opacityValue.textContent = `${opacity}%`;
+    }
+  }
+
+  private async setWindowOpacity(opacity: number) {
+    try {
+      const result = await window.electronAPI.window.setOpacity(opacity);
+      if (!result.success) {
+        console.error('Failed to set opacity:', result.error);
+        this.showMessage('Failed to update window opacity', 'error');
+      } else {
+        // Save the opacity preference
+        this.saveOpacityPreference(opacity);
+      }
+    } catch (error) {
+      console.error('Error setting opacity:', error);
+      this.showMessage('Failed to update window opacity', 'error');
+    }
+  }
+
+  private saveOpacityPreference(opacity: number) {
+    try {
+      localStorage.setItem('windowOpacity', opacity.toString());
+    } catch (error) {
+      console.error('Failed to save opacity preference:', error);
+    }
+  }
+
+  private loadOpacityPreference() {
+    try {
+      const stored = localStorage.getItem('windowOpacity');
+      const opacity = stored ? parseInt(stored) : 80; // Default to 80%
+      
+      // Update slider and value display
+      const opacitySlider = document.getElementById('opacity-slider') as HTMLInputElement;
+      if (opacitySlider) {
+        opacitySlider.value = opacity.toString();
+        this.updateOpacityValue(opacity);
+        // Set the window opacity without saving (to avoid recursion)
+        window.electronAPI.window.setOpacity(opacity).catch(console.error);
+      }
+    } catch (error) {
+      console.error('Failed to load opacity preference:', error);
+    }
   }
 }
 
