@@ -723,6 +723,12 @@ body {
   font-family: inherit;
 }
 
+.btn-large {
+  padding: 12px 24px;
+  font-size: 16px;
+  border-radius: 8px;
+}
+
 .btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -1067,4 +1073,65 @@ input:checked + .slider:before {
   color: #007AFF;
   min-width: 40px;
   text-align: right;
+}
+
+/* Chat tab specific styles */
+.chat-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: 100%;
+  justify-content: center;
+  align-items: stretch;
+  -webkit-app-region: no-drag;
+}
+
+.chat-info {
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.chat-info p {
+  margin: 0;
+}
+
+.chat-content .input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  -webkit-app-region: no-drag;
+}
+
+.chat-content .input-section textarea {
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  outline: none;
+  transition: border-color 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.chat-content .input-section textarea:focus {
+  border-color: #007AFF;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+}
+
+.chat-content .input-section .chat-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  -webkit-app-region: no-drag;
+}
+
+.chat-content .input-section button {
+  min-width: 120px;
+  -webkit-app-region: no-drag;
 }

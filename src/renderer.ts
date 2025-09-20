@@ -56,6 +56,9 @@ interface ElectronAPI {
   window: {
     setOpacity: (opacity: number) => Promise<{success: boolean; error?: string}>;
   };
+  chat: {
+    openWindow: (initialMessage?: string) => Promise<{success: boolean; error?: string}>;
+  };
 }
 
 declare global {
@@ -315,6 +318,22 @@ class ClipboardManager {
       setTimeout(() => this.ensureActiveTab(), 50);
     });
 
+    document.getElementById('chat-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('chat')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('chat', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
+    });
+
     // Opacity slider control
     document.getElementById('opacity-slider')?.addEventListener('input', (e) => {
       const slider = e.target as HTMLInputElement;
@@ -352,6 +371,49 @@ class ClipboardManager {
           await this.saveItem(text);
           this.clipboardInput.value = '';
         }
+      }
+    });
+
+    // Chat input and send button
+    const chatInput = document.getElementById('chat-input') as HTMLTextAreaElement;
+    const sendChatButton = document.getElementById('send-chat-message');
+    const openHistoryButton = document.getElementById('open-chat-history');
+
+    const sendChatMessage = async () => {
+      const message = chatInput?.value.trim();
+      if (!message) {
+        this.showMessage('Please enter a message', 'warning');
+        return;
+      }
+
+      try {
+        await window.electronAPI.chat.openWindow(message);
+        chatInput.value = '';
+        this.showMessage('Chat window opened with your message', 'success');
+      } catch (error) {
+        console.error('Failed to open chat window:', error);
+        this.showMessage('Failed to open chat window', 'error');
+      }
+    };
+
+    const openChatHistory = async () => {
+      try {
+        await window.electronAPI.chat.openWindow();
+        this.showMessage('Chat window opened', 'success');
+      } catch (error) {
+        console.error('Failed to open chat window:', error);
+        this.showMessage('Failed to open chat window', 'error');
+      }
+    };
+
+    sendChatButton?.addEventListener('click', sendChatMessage);
+    openHistoryButton?.addEventListener('click', openChatHistory);
+
+    // Enter key to send message (Ctrl/Cmd + Enter for new line)
+    chatInput?.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        await sendChatMessage();
       }
     });
   }
@@ -542,12 +604,14 @@ class ClipboardManager {
     const grammarEnabled = (document.getElementById('grammar-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const linksEnabled = (document.getElementById('links-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const tasksEnabled = (document.getElementById('tasks-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    const chatEnabled = (document.getElementById('chat-tab-toggle') as HTMLInputElement)?.checked ?? true;
     
     const preferences = {
       clipboardTab: clipboardEnabled,
       grammarTab: grammarEnabled,
       linksTab: linksEnabled,
-      tasksTab: tasksEnabled
+      tasksTab: tasksEnabled,
+      chatTab: chatEnabled
     };
     
     try {
@@ -560,13 +624,14 @@ class ClipboardManager {
   private loadTabPreferences() {
     try {
       const stored = localStorage.getItem('tabPreferences');
-      const preferences = stored ? JSON.parse(stored) : { clipboardTab: true, grammarTab: true, linksTab: true, tasksTab: true };
+      const preferences = stored ? JSON.parse(stored) : { clipboardTab: true, grammarTab: true, linksTab: true, tasksTab: true, chatTab: true };
       
       // Update toggle states
       const clipboardToggle = document.getElementById('clipboard-tab-toggle') as HTMLInputElement;
       const grammarToggle = document.getElementById('grammar-tab-toggle') as HTMLInputElement;
       const linksToggle = document.getElementById('links-tab-toggle') as HTMLInputElement;
       const tasksToggle = document.getElementById('tasks-tab-toggle') as HTMLInputElement;
+      const chatToggle = document.getElementById('chat-tab-toggle') as HTMLInputElement;
       
       if (clipboardToggle) {
         clipboardToggle.checked = preferences.clipboardTab;
@@ -586,6 +651,11 @@ class ClipboardManager {
       if (tasksToggle) {
         tasksToggle.checked = preferences.tasksTab ?? true;
         this.toggleTabVisibility('tasks', preferences.tasksTab ?? true);
+      }
+      
+      if (chatToggle) {
+        chatToggle.checked = preferences.chatTab ?? true;
+        this.toggleTabVisibility('chat', preferences.chatTab ?? true);
       }
       
       // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
@@ -622,8 +692,9 @@ class ClipboardManager {
     const grammarToggle = document.getElementById('grammar-tab-toggle') as HTMLInputElement;
     const linksToggle = document.getElementById('links-tab-toggle') as HTMLInputElement;
     const tasksToggle = document.getElementById('tasks-tab-toggle') as HTMLInputElement;
+    const chatToggle = document.getElementById('chat-tab-toggle') as HTMLInputElement;
     
-    if (!clipboardToggle || !grammarToggle || !linksToggle || !tasksToggle) return false;
+    if (!clipboardToggle || !grammarToggle || !linksToggle || !tasksToggle || !chatToggle) return false;
     
     // Count how many tabs would remain enabled after disabling this one
     const remainingTabs = [];
@@ -631,6 +702,7 @@ class ClipboardManager {
     if (tabName !== 'grammar' && grammarToggle.checked) remainingTabs.push('grammar');
     if (tabName !== 'links' && linksToggle.checked) remainingTabs.push('links');
     if (tabName !== 'tasks' && tasksToggle.checked) remainingTabs.push('tasks');
+    if (tabName !== 'chat' && chatToggle.checked) remainingTabs.push('chat');
     
     // Allow disabling only if at least one tab would remain
     return remainingTabs.length > 0;
