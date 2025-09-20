@@ -21,6 +21,9 @@ interface ElectronAPI {
     deleteItem: (id: string, items: ClipboardItem[]) => Promise<ClipboardItem[]>;
     clearAll: () => Promise<ClipboardItem[]>;
   };
+  grammar: {
+    checkGrammar: (text: string) => Promise<{success: boolean; result?: string; error?: string}>;
+  };
 }
 
 declare global {
@@ -389,13 +392,18 @@ class GrammarChecker {
   }
   
   private async performGrammarCheck(text: string): Promise<string> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Return placeholder results
-    const result = "This is placeholder results for the grammar checker.";
-    
-    return result;
+    try {
+      const response = await window.electronAPI.grammar.checkGrammar(text);
+      
+      if (response.success) {
+        return response.result || "No response received from OpenAI.";
+      } else {
+        return `Error: ${response.error || "Unknown error occurred"}`;
+      }
+    } catch (error) {
+      console.error('Grammar check error:', error);
+      return "Error: Failed to check grammar. Please try again.";
+    }
   }
   
   private showResults(content: string, type: 'success' | 'error' | 'loading') {
