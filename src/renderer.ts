@@ -664,8 +664,8 @@ class LinksManager {
       const name = this.linkNameInput.value.trim();
       const url = this.linkUrlInput.value.trim();
       
-      if (name && url) {
-        await this.saveItem(name, url);
+      if (url) {
+        await this.saveItem(name || url, url);
         this.linkNameInput.value = '';
         this.linkUrlInput.value = '';
       }
@@ -679,8 +679,8 @@ class LinksManager {
           const name = this.linkNameInput.value.trim();
           const url = this.linkUrlInput.value.trim();
           
-          if (name && url) {
-            await this.saveItem(name, url);
+          if (url) {
+            await this.saveItem(name || url, url);
             this.linkNameInput.value = '';
             this.linkUrlInput.value = '';
           }
