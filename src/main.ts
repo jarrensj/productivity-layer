@@ -2,6 +2,11 @@ import { app, BrowserWindow, screen, clipboard, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { randomUUID } from 'crypto';
+import OpenAI from 'openai';
+import * as dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -79,6 +84,11 @@ interface ClipboardItem {
 
 let savedClipboardItems: ClipboardItem[] = [];
 
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 // IPC handlers for clipboard operations
 ipcMain.handle('clipboard:write-text', (event, text: string) => {
   clipboard.writeText(text);
@@ -131,6 +141,44 @@ ipcMain.handle('clipboard:delete-item', (event, id: string, items: ClipboardItem
 ipcMain.handle('clipboard:clear-all', () => {
   savedClipboardItems = [];
   return savedClipboardItems;
+});
+
+// Grammar checking with OpenAI
+ipcMain.handle('grammar:check', async (event, text: string) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not found. Please add OPENAI_API_KEY to your .env file.');
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "user",
+          content: `Check the grammar of this sentence and specifically look for:
+1. Words that should be written as one word or two words (like "everyday" vs "every day", "into" vs "in to", "cannot" vs "can not", "maybe" vs "may be", etc.)
+2. Words that should be hyphenated or not hyphenated (like "well-known" vs "well known", "twenty-one" vs "twenty one", "self-aware" vs "self aware", "up-to-date" vs "up to date", compound adjectives, etc.)
+
+For each correction you suggest, please explain why the correction is needed and provide the reasoning behind the grammar rule.
+
+Text to check: "${text}"`
+        }
+      ],
+      max_tokens: 500,
+      temperature: 0.3,
+    });
+
+    return {
+      success: true,
+      result: completion.choices[0]?.message?.content || "Sorry, I couldn't analyze your text right now. Please try again."
+    };
+  } catch (error) {
+    console.error('Grammar check error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
 });
 
 // In this file you can include the rest of your app's specific main process

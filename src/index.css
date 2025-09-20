@@ -49,8 +49,53 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  -webkit-app-region: no-drag;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  flex: 1;
+  font-weight: 500;
+}
+
+.tab-btn:hover {
+  color: #333;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.tab-btn.active {
+  color: #007AFF;
+  border-bottom-color: #007AFF;
+  background: rgba(0, 122, 255, 0.1);
+}
+
+/* Tab Content */
+.tab-content {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+}
+
+.tab-content.active {
+  display: flex;
+  flex-direction: column;
+}
+
 /* Content Area */
-.clipboard-content {
+.clipboard-content,
+.grammar-content {
   flex: 1;
   padding: 16px 20px;
   display: flex;
@@ -67,7 +112,8 @@ body {
   gap: 8px;
 }
 
-#clipboard-input {
+#clipboard-input,
+#grammar-input {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid rgba(0, 0, 0, 0.2);
@@ -81,17 +127,20 @@ body {
   transition: border-color 0.2s;
 }
 
-#clipboard-input:focus {
+#clipboard-input:focus,
+#grammar-input:focus {
   border-color: #007AFF;
   box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
 }
 
-#clipboard-input::placeholder {
+#clipboard-input::placeholder,
+#grammar-input::placeholder {
   color: #999;
 }
 
-/* Items Section */
-.items-section {
+/* Items Section & Results Section */
+.items-section,
+.results-section {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -338,6 +387,36 @@ body {
     opacity: 0;
   }
 }
+
+.grammar-results {
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.8);
+  min-height: 100px;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-y: auto;
+}
+
+.grammar-results.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+}
+
+.grammar-results.error {
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
+  border-color: rgba(220, 53, 69, 0.3);
+}
+
+.grammar-results.success {
+  color: #333;
+  background: rgba(255, 255, 255, 0.9);
+}
+
 
 /* Responsive adjustments */
 @media (max-height: 400px) {
