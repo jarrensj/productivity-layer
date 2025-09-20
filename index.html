@@ -5,11 +5,12 @@
     <title>Productivity Overlay</title>
   </head>
   <body>
-    <div class="overlay-container">
+    <!-- Main App View -->
+    <div id="main-app" class="overlay-container">
       <div class="header">
         <h1>Productivity Overlay</h1>
         <div class="header-controls">
-          <button id="clear-all" class="btn btn-secondary" title="Clear all items">Clear All</button>
+          <button id="settings-btn" class="btn btn-secondary" title="Settings">⚙️ Settings</button>
         </div>
       </div>
       
@@ -46,6 +47,42 @@
           
           <div class="results-section">
             <div id="grammar-results" class="grammar-results">Enter text above and click "Check Grammar" to see results.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Page View -->
+    <div id="settings-page" class="overlay-container" style="display: none;">
+      <div class="header">
+        <div class="header-back">
+          <button id="back-to-app" class="btn btn-secondary" title="Back to App">← Back</button>
+        </div>
+        <h1>Settings</h1>
+        <div class="header-controls">
+          <!-- Empty space for balance -->
+        </div>
+      </div>
+      
+      <div class="settings-page-content">
+        <div class="settings-section">
+          <h3>Clipboard Management</h3>
+          <div class="setting-item">
+            <div class="setting-description">
+              <strong>Clear All Clipboard Items</strong>
+              <p>Remove all saved clipboard items permanently. This action cannot be undone.</p>
+            </div>
+            <button id="clear-all" class="btn btn-danger">Clear</button>
+          </div>
+        </div>
+        
+        <div class="settings-section">
+          <h3>Application Info</h3>
+          <div class="setting-item">
+            <div class="setting-description">
+              <strong>Version</strong>
+              <p>Productivity Overlay v1.0.0</p>
+            </div>
           </div>
         </div>
       </div>

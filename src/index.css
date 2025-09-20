@@ -49,6 +49,12 @@ body {
   -webkit-app-region: no-drag;
 }
 
+.header-back {
+  display: flex;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
 /* Tab Navigation */
 .tab-navigation {
   display: flex;
@@ -415,6 +421,79 @@ body {
 .grammar-results.success {
   color: #333;
   background: rgba(255, 255, 255, 0.9);
+}
+
+/* Settings Page Styles */
+.settings-page-content {
+  flex: 1;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  -webkit-app-region: no-drag;
+}
+
+.settings-section {
+  margin-bottom: 24px;
+}
+
+.settings-section h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  gap: 16px;
+}
+
+.setting-item:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.setting-description {
+  flex: 1;
+}
+
+.setting-description strong {
+  display: block;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.setting-description p {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.setting-item .btn {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Override btn-danger for settings buttons to not be circular */
+.setting-item .btn-danger {
+  width: auto;
+  height: auto;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
 }
 
 
