@@ -4,6 +4,7 @@ import started from 'electron-squirrel-startup';
 import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
+import { ChatWindowManager } from './chat/ChatWindowManager';
 
 // Load environment variables
 dotenv.config();
@@ -34,7 +35,7 @@ const createWindow = () => {
 
   // Position the window in the top-right corner
   const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const { width: screenWidth } = primaryDisplay.workAreaSize;
   
   mainWindow.setPosition(screenWidth - 400, 0);
 
@@ -174,6 +175,88 @@ Text to check: "${text}"`
     };
   } catch (error) {
     console.error('Grammar check error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+});
+
+// Chat functionality with OpenAI
+ipcMain.handle('chat:send-message', async (event, message: string) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not found. Please add OPENAI_API_KEY to your .env file.');
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      max_tokens: 1000,
+      temperature: 0.7,
+    });
+
+    return {
+      success: true,
+      result: completion.choices[0]?.message?.content || "Sorry, I couldn't process your message right now. Please try again."
+    };
+  } catch (error) {
+    console.error('Chat error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+});
+
+ipcMain.handle('chat:create-window', (event, message: string, response: string) => {
+  try {
+    const chatWindowManager = ChatWindowManager.getInstance();
+    chatWindowManager.createChatWindow(message, response);
+    return true;
+  } catch (error) {
+    console.error('Failed to create chat window:', error);
+    return false;
+  }
+});
+
+// Handle sending chat messages in the new window
+ipcMain.handle('chat:send-message-to-conversation', async (event, conversationId: string, message: string) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not found. Please add OPENAI_API_KEY to your .env file.');
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      max_tokens: 1000,
+      temperature: 0.7,
+    });
+
+    const response = completion.choices[0]?.message?.content || "Sorry, I couldn't process your message right now. Please try again.";
+
+    // Add message to conversation
+    const { conversationManager } = await import('./chat/ConversationManager');
+    conversationManager.addMessage(conversationId, 'user', message);
+    conversationManager.addMessage(conversationId, 'assistant', response);
+
+    return {
+      success: true,
+      data: response
+    };
+  } catch (error) {
+    console.error('Chat error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

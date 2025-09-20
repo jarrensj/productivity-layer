@@ -24,6 +24,11 @@ interface ElectronAPI {
   grammar: {
     checkGrammar: (text: string) => Promise<{success: boolean; result?: string; error?: string}>;
   };
+  chat: {
+    sendMessage: (message: string) => Promise<{success: boolean; result?: string; error?: string}>;
+    createChatWindow: (message: string, response: string) => Promise<boolean>;
+    sendChatMessage: (conversationId: string, message: string) => Promise<{success: boolean; data?: string; error?: string}>;
+  };
 }
 
 declare global {
@@ -90,7 +95,7 @@ class ClipboardManager {
     });
 
     // Auto-save when pasting into input
-    this.clipboardInput.addEventListener('paste', async (e) => {
+    this.clipboardInput.addEventListener('paste', async () => {
       // Wait for paste to complete
       setTimeout(async () => {
         const text = this.clipboardInput.value.trim();
@@ -136,7 +141,7 @@ class ClipboardManager {
       this.renderItems();
       
       // Show feedback message based on whether it was a duplicate
-      if (result.savedItem && (result.savedItem as any).isDuplicate) {
+      if (result.savedItem && 'isDuplicate' in result.savedItem) {
         this.showMessage('Item already exists in clipboard history', 'warning');
         // Highlight the existing item
         this.highlightExistingItem(result.savedItem.id);
@@ -293,7 +298,7 @@ class ClipboardManager {
 
 // Tab Management Class
 class TabManager {
-  private activeTab: string = 'clipboard';
+  private activeTab = 'clipboard';
   
   constructor() {
     this.init();
@@ -412,6 +417,112 @@ class GrammarChecker {
   }
 }
 
+// AI Chat Class
+class AIChat {
+  private chatInput: HTMLTextAreaElement;
+  private sendButton: HTMLElement;
+  
+  constructor() {
+    this.chatInput = document.getElementById('chat-input') as HTMLTextAreaElement;
+    this.sendButton = document.getElementById('send-chat')!;
+    
+    this.init();
+  }
+  
+  private init() {
+    this.setupEventListeners();
+  }
+  
+  private setupEventListeners() {
+    this.sendButton.addEventListener('click', () => {
+      this.sendMessage();
+    });
+    
+    // Allow Enter to send message (Ctrl/Cmd + Enter for new line)
+    this.chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        this.sendMessage();
+      }
+    });
+  }
+  
+  private async sendMessage() {
+    const message = this.chatInput.value.trim();
+    
+    if (!message) {
+      return;
+    }
+    
+    // Show loading state
+    this.sendButton.textContent = 'Sending...';
+    this.sendButton.setAttribute('disabled', 'true');
+    this.chatInput.disabled = true;
+    
+    try {
+      const response = await window.electronAPI.chat.sendMessage(message);
+      
+      if (response.success) {
+        // Automatically create a new chat window with the conversation
+        await this.createChatWindow(message, response.result || "No response received.");
+      } else {
+        // Show error in a temporary way since we removed the results section
+        this.showTemporaryMessage(`❌ Error: ${response.error || "Unknown error occurred"}`);
+      }
+    } catch (error) {
+      console.error('Chat error:', error);
+      this.showTemporaryMessage('❌ Failed to send message. Please try again.');
+    } finally {
+      this.sendButton.textContent = 'Send';
+      this.sendButton.removeAttribute('disabled');
+      this.chatInput.disabled = false;
+      this.chatInput.value = '';
+      this.chatInput.focus();
+    }
+  }
+  
+  private async createChatWindow(message: string, response: string) {
+    try {
+      const success = await window.electronAPI.chat.createChatWindow(message, response);
+      if (success) {
+        this.showTemporaryMessage('✅ Chat window opened! You can continue the conversation there.');
+      } else {
+        this.showTemporaryMessage('❌ Failed to open chat window.');
+      }
+    } catch (error) {
+      console.error('Failed to create chat window:', error);
+      this.showTemporaryMessage('❌ Failed to open chat window.');
+    }
+  }
+  
+  private showTemporaryMessage(message: string) {
+    // Create a temporary toast message since we removed the results section
+    const existingMessage = document.querySelector('.toast-message');
+    if (existingMessage) {
+      existingMessage.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-message toast-info';
+    toast.textContent = message;
+
+    const container = document.querySelector('.overlay-container');
+    if (container) {
+      container.appendChild(toast);
+
+      // Auto-remove after 3 seconds
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.classList.add('fade-out');
+          setTimeout(() => {
+            toast.remove();
+          }, 300);
+        }
+      }, 3000);
+    }
+  }
+}
+
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize tab manager
@@ -419,6 +530,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize grammar checker
   new GrammarChecker();
+  
+  // Initialize AI chat
+  new AIChat();
   
   // Wait for electronAPI to be available for clipboard functionality
   if (window.electronAPI) {

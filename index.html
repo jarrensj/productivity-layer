@@ -17,6 +17,7 @@
       <div class="tab-navigation">
         <button class="tab-btn active" data-tab="clipboard">Clipboard</button>
         <button class="tab-btn" data-tab="grammar">Grammar</button>
+        <button class="tab-btn" data-tab="chat">AI Chat</button>
       </div>
       
       <!-- Clipboard Tab Content -->
@@ -46,6 +47,16 @@
           
           <div class="results-section">
             <div id="grammar-results" class="grammar-results">Enter text above and click "Check Grammar" to see results.</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- AI Chat Tab Content -->
+      <div id="chat-tab" class="tab-content">
+        <div class="chat-content">
+          <div class="input-section">
+            <textarea id="chat-input" placeholder="Ask me anything..." rows="3"></textarea>
+            <button id="send-chat" class="btn btn-primary">Send</button>
           </div>
         </div>
       </div>
