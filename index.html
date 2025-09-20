@@ -5,11 +5,12 @@
     <title>Productivity Overlay</title>
   </head>
   <body>
-    <div class="overlay-container">
+    <!-- Main App View -->
+    <div id="main-app" class="overlay-container">
       <div class="header">
         <h1>Productivity Overlay</h1>
         <div class="header-controls">
-          <button id="clear-all" class="btn btn-secondary" title="Clear all items">Clear All</button>
+          <button id="settings-btn" class="btn btn-secondary" title="Settings">⚙️ Settings</button>
         </div>
       </div>
       
@@ -57,6 +58,72 @@
           <div class="input-section">
             <textarea id="chat-input" placeholder="Ask me anything..." rows="3"></textarea>
             <button id="send-chat" class="btn btn-primary">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Page View -->
+    <div id="settings-page" class="overlay-container" style="display: none;">
+      <div class="header">
+        <div class="header-back">
+          <button id="back-to-app" class="btn btn-secondary" title="Back to App">← Back</button>
+        </div>
+        <h1>Settings</h1>
+        <div class="header-controls">
+          <!-- Empty space for balance -->
+        </div>
+      </div>
+      
+      <div class="settings-page-content">
+        <div class="settings-section">
+          <h3>Interface Customization</h3>
+          <div class="setting-item">
+            <div class="setting-description">
+              <strong>Available Tabs</strong>
+              <p>Choose which tabs are visible in your overlay interface. <em>At least one tab must remain enabled.</em></p>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div class="setting-description">
+              <strong>Clipboard Tab</strong>
+              <p>Save and manage clipboard items with easy copy functionality.</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="clipboard-tab-toggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-item">
+            <div class="setting-description">
+              <strong>Grammar Checker Tab</strong>
+              <p>Check and improve text grammar using AI-powered suggestions.</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="grammar-tab-toggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+        
+        <div class="settings-section">
+          <h3>Clipboard Management</h3>
+          <div class="setting-item">
+            <div class="setting-description">
+              <strong>Clear All Clipboard Items</strong>
+              <p>Remove all saved clipboard items permanently. This action cannot be undone.</p>
+            </div>
+            <button id="clear-all" class="btn btn-danger">Clear</button>
+          </div>
+        </div>
+        
+        <div class="settings-section">
+          <h3>Application Info</h3>
+          <div class="setting-item">
+            <div class="setting-description">
+              <strong>Version</strong>
+              <p>Productivity Overlay v1.0.0</p>
+            </div>
           </div>
         </div>
       </div>
