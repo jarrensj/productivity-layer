@@ -377,6 +377,7 @@ class ClipboardManager {
     // Chat input and send button
     const chatInput = document.getElementById('chat-input') as HTMLTextAreaElement;
     const sendChatButton = document.getElementById('send-chat-message');
+    const openHistoryButton = document.getElementById('open-chat-history');
 
     const sendChatMessage = async () => {
       const message = chatInput?.value.trim();
@@ -395,7 +396,18 @@ class ClipboardManager {
       }
     };
 
+    const openChatHistory = async () => {
+      try {
+        await window.electronAPI.chat.openWindow();
+        this.showMessage('Chat window opened', 'success');
+      } catch (error) {
+        console.error('Failed to open chat window:', error);
+        this.showMessage('Failed to open chat window', 'error');
+      }
+    };
+
     sendChatButton?.addEventListener('click', sendChatMessage);
+    openHistoryButton?.addEventListener('click', openChatHistory);
 
     // Enter key to send message (Ctrl/Cmd + Enter for new line)
     chatInput?.addEventListener('keydown', async (e) => {

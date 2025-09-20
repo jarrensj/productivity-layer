@@ -1124,8 +1124,14 @@ input:checked + .slider:before {
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
 }
 
+.chat-content .input-section .chat-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  -webkit-app-region: no-drag;
+}
+
 .chat-content .input-section button {
-  align-self: flex-end;
-  min-width: 140px;
+  min-width: 120px;
   -webkit-app-region: no-drag;
 }
