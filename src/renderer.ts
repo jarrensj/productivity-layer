@@ -71,7 +71,17 @@ class ClipboardManager {
   }
 
   private setupEventListeners() {
-    // Clear all button
+    // Settings button - navigates to settings page
+    document.getElementById('settings-btn')?.addEventListener('click', () => {
+      this.navigateToSettings();
+    });
+
+    // Back to app button - navigates back to main app
+    document.getElementById('back-to-app')?.addEventListener('click', () => {
+      this.navigateToMainApp();
+    });
+
+    // Clear all button (now in settings page)
     document.getElementById('clear-all')?.addEventListener('click', async () => {
       if (confirm('Clear all saved clipboard items?')) {
         this.items = await window.electronAPI.clipboard.clearAll();
@@ -273,8 +283,8 @@ class ClipboardManager {
     toast.className = `toast-message toast-${type}`;
     toast.textContent = message;
 
-    // Add to container
-    const container = document.querySelector('.overlay-container');
+    // Add to container (find the currently visible container)
+    const container = document.querySelector('.overlay-container:not([style*="display: none"])');
     if (container) {
       container.appendChild(toast);
 
@@ -287,6 +297,26 @@ class ClipboardManager {
           }, 300);
         }
       }, 3000);
+    }
+  }
+
+  private navigateToSettings() {
+    const mainApp = document.getElementById('main-app');
+    const settingsPage = document.getElementById('settings-page');
+    
+    if (mainApp && settingsPage) {
+      mainApp.style.display = 'none';
+      settingsPage.style.display = 'flex';
+    }
+  }
+
+  private navigateToMainApp() {
+    const mainApp = document.getElementById('main-app');
+    const settingsPage = document.getElementById('settings-page');
+    
+    if (mainApp && settingsPage) {
+      settingsPage.style.display = 'none';
+      mainApp.style.display = 'flex';
     }
   }
 }
