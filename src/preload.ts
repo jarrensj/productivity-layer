@@ -23,6 +23,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     clearAllLinks: () => ipcRenderer.invoke('links:clear-all'),
     openLink: (url: string) => ipcRenderer.invoke('links:open-link', url),
   },
+  tasks: {
+    saveTask: (text: string, items: any[]) => ipcRenderer.invoke('tasks:save-item', text, items),
+    getSavedTasks: () => ipcRenderer.invoke('tasks:get-items'),
+    updateTask: (id: string, updates: any, items: any[]) => ipcRenderer.invoke('tasks:update-item', id, updates, items),
+    deleteTask: (id: string, items: any[]) => ipcRenderer.invoke('tasks:delete-item', id, items),
+    clearAllTasks: () => ipcRenderer.invoke('tasks:clear-all'),
+  },
   window: {
     setOpacity: (opacity: number) => ipcRenderer.invoke('window:set-opacity', opacity),
   },

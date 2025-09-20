@@ -86,8 +86,17 @@ interface LinkItem {
   timestamp: number;
 }
 
+// Tasks storage
+interface TaskItem {
+  id: string;
+  text: string;
+  completed: boolean;
+  timestamp: number;
+}
+
 let savedClipboardItems: ClipboardItem[] = [];
 let savedLinkItems: LinkItem[] = [];
+let savedTaskItems: TaskItem[] = [];
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -309,6 +318,57 @@ ipcMain.handle('links:open-link', async (event, url: string) => {
       error: error instanceof Error ? error.message : 'Failed to open link'
     };
   }
+});
+
+// Tasks management handlers
+ipcMain.handle('tasks:save-item', (event, text: string, items: TaskItem[]) => {
+  // Update the main process array with the current items from renderer
+  savedTaskItems = items || savedTaskItems;
+  
+  const newItem: TaskItem = {
+    id: randomUUID(),
+    text,
+    completed: false,
+    timestamp: Date.now(),
+  };
+  
+  // Add to beginning of array (most recent first)
+  savedTaskItems.unshift(newItem);
+  
+  // Limit to 100 items to prevent memory issues
+  if (savedTaskItems.length > 100) {
+    savedTaskItems = savedTaskItems.slice(0, 100);
+  }
+  
+  return { items: savedTaskItems, savedItem: newItem };
+});
+
+ipcMain.handle('tasks:get-items', () => {
+  return savedTaskItems;
+});
+
+ipcMain.handle('tasks:update-item', (event, id: string, updates: Partial<TaskItem>, items: TaskItem[]) => {
+  // Update the main process array with the current items from renderer
+  savedTaskItems = items || savedTaskItems;
+  
+  const itemIndex = savedTaskItems.findIndex(item => item.id === id);
+  if (itemIndex !== -1) {
+    savedTaskItems[itemIndex] = { ...savedTaskItems[itemIndex], ...updates };
+  }
+  
+  return savedTaskItems;
+});
+
+ipcMain.handle('tasks:delete-item', (event, id: string, items: TaskItem[]) => {
+  // Update the main process array with the current items from renderer
+  savedTaskItems = items || savedTaskItems;
+  savedTaskItems = savedTaskItems.filter(item => item.id !== id);
+  return savedTaskItems;
+});
+
+ipcMain.handle('tasks:clear-all', () => {
+  savedTaskItems = [];
+  return savedTaskItems;
 });
 
 // Window opacity handler
