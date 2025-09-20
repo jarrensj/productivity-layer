@@ -16,4 +16,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   grammar: {
     checkGrammar: (text: string) => ipcRenderer.invoke('grammar:check', text),
   },
+  links: {
+    saveLink: (name: string, url: string, items: any[]) => ipcRenderer.invoke('links:save-item', name, url, items),
+    getSavedLinks: () => ipcRenderer.invoke('links:get-items'),
+    deleteLink: (id: string, items: any[]) => ipcRenderer.invoke('links:delete-item', id, items),
+    clearAllLinks: () => ipcRenderer.invoke('links:clear-all'),
+    openLink: (url: string) => ipcRenderer.invoke('links:open-link', url),
+  },
 });

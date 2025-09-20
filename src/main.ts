@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, clipboard, ipcMain } from 'electron';
+import { app, BrowserWindow, screen, clipboard, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { randomUUID } from 'crypto';
@@ -78,7 +78,16 @@ interface ClipboardItem {
   timestamp: number;
 }
 
+// Links storage
+interface LinkItem {
+  id: string;
+  name: string;
+  url: string;
+  timestamp: number;
+}
+
 let savedClipboardItems: ClipboardItem[] = [];
+let savedLinkItems: LinkItem[] = [];
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -173,6 +182,131 @@ Text to check: "${text}"`
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+});
+
+// Links management handlers
+ipcMain.handle('links:save-item', (event, name: string, url: string, items: LinkItem[]) => {
+  // Update the main process array with the current items from renderer
+  savedLinkItems = items || savedLinkItems;
+  
+  let normalizedUrl = url.trim();
+  
+  if (!normalizedUrl || normalizedUrl.length < 3) {
+    return {
+      success: false,
+      error: 'Please enter a valid URL.'
+    };
+  }
+  
+  let hostnameToValidate = normalizedUrl;
+  if (normalizedUrl.startsWith('http://')) {
+    hostnameToValidate = normalizedUrl.substring(7);
+  } else if (normalizedUrl.startsWith('https://')) {
+    hostnameToValidate = normalizedUrl.substring(8);
+  }
+  
+  hostnameToValidate = hostnameToValidate.split('/')[0].split(':')[0];
+  
+  const isValidDomain = (hostname: string): boolean => {
+    if (hostname === 'localhost') {
+      return true;
+    }
+    
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipRegex.test(hostname)) {
+      return true;
+    }
+    
+    if (!hostname.includes('.')) {
+      return false;
+    }
+    
+    const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+    if (!domainRegex.test(hostname)) {
+      return false;
+    }
+    
+    const parts = hostname.split('.');
+    const tld = parts[parts.length - 1];
+    if (tld.length < 2) {
+      return false;
+    }
+    
+    return true;
+  };
+  
+  if (!isValidDomain(hostnameToValidate)) {
+    return {
+      success: false,
+      error: 'Invalid domain name".'
+    };
+  }
+  
+  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+    normalizedUrl = 'https://' + normalizedUrl;
+  }
+  
+  try {
+    const urlObj = new URL(normalizedUrl);
+    normalizedUrl = urlObj.toString();
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Invalid URL format.'
+    };
+  }
+  
+  // Check if link already exists to avoid duplicates
+  const existingItem = savedLinkItems.find(item => item.url === normalizedUrl);
+  if (existingItem) {
+    return { items: savedLinkItems, savedItem: { ...existingItem, isDuplicate: true } };
+  }
+
+  const newItem: LinkItem = {
+    id: randomUUID(),
+    name,
+    url: normalizedUrl,
+    timestamp: Date.now(),
+  };
+  
+  // Add to beginning of array (most recent first)
+  savedLinkItems.unshift(newItem);
+  
+  // Limit to 50 items to prevent memory issues
+  if (savedLinkItems.length > 50) {
+    savedLinkItems = savedLinkItems.slice(0, 50);
+  }
+  
+  return { items: savedLinkItems, savedItem: newItem };
+});
+
+ipcMain.handle('links:get-items', () => {
+  return savedLinkItems;
+});
+
+ipcMain.handle('links:delete-item', (event, id: string, items: LinkItem[]) => {
+  // Update the main process array with the current items from renderer
+  savedLinkItems = items || savedLinkItems;
+  savedLinkItems = savedLinkItems.filter(item => item.id !== id);
+  return savedLinkItems;
+});
+
+ipcMain.handle('links:clear-all', () => {
+  savedLinkItems = [];
+  return savedLinkItems;
+});
+
+ipcMain.handle('links:open-link', async (event, url: string) => {
+  try {
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to open link:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to open link'
     };
   }
 });
