@@ -10,3 +10,4 @@ This app is made to speed up productivity!
 - **customizable interface**: toggle tabs on/off to personalize your workflow - show only the tools you want
 - **organize your tabs**: organize your tabs in your preferred order 
 - **adjustable opacity**: customize window transparency in settings to preference
+- **image generation**: tab for easy access to generate an image 
