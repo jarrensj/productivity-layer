@@ -55,6 +55,8 @@ interface ElectronAPI {
   };
   window: {
     setOpacity: (opacity: number) => Promise<{success: boolean; error?: string}>;
+    minimize: () => Promise<{success: boolean; error?: string}>;
+    restore: () => Promise<{success: boolean; error?: string}>;
   };
   chat: {
     openWindow: (initialMessage?: string) => Promise<{success: boolean; error?: string}>;
@@ -202,6 +204,20 @@ class ClipboardManager {
   }
 
   private setupEventListeners() {
+    // Minimize button
+    document.getElementById('minimize-btn')?.addEventListener('click', async () => {
+      try {
+        const result = await window.electronAPI.window.minimize();
+        if (!result.success) {
+          console.error('Failed to minimize window:', result.error);
+          this.showMessage('Failed to minimize window', 'error');
+        }
+      } catch (error) {
+        console.error('Error minimizing window:', error);
+        this.showMessage('Failed to minimize window', 'error');
+      }
+    });
+
     // Settings button - navigates to settings page
     document.getElementById('settings-btn')?.addEventListener('click', () => {
       this.navigateToSettings();

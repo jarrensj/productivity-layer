@@ -15,7 +15,7 @@ if (started) {
 
 const createWindow = () => {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 400,
     height: 500,
     alwaysOnTop: true,
@@ -47,6 +47,99 @@ const createWindow = () => {
     );
   }
 
+};
+
+// Create minimized bubble window
+const createMinimizedBubble = () => {
+  if (minimizedBubble && !minimizedBubble.isDestroyed()) {
+    return;
+  }
+
+  minimizedBubble = new BrowserWindow({
+    width: 60,
+    height: 60,
+    alwaysOnTop: true,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: true,
+    skipTaskbar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  // Position the bubble in the top-right corner
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth } = primaryDisplay.workAreaSize;
+  
+  minimizedBubble.setPosition(screenWidth - 80, 20);
+
+  // Load the minimized bubble HTML
+  const bubbleHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body {
+          margin: 0;
+          padding: 0;
+          background: transparent;
+          -webkit-app-region: drag;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .bubble {
+          width: 60px;
+          height: 60px;
+          background: rgba(0, 122, 255, 0.9);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 20px rgba(0, 122, 255, 0.4);
+          border: 2px solid rgba(255, 255, 255, 0.8);
+          -webkit-app-region: no-drag;
+        }
+        .bubble:hover {
+          transform: scale(1.1);
+          background: rgba(0, 122, 255, 1);
+          box-shadow: 0 6px 25px rgba(0, 122, 255, 0.6);
+        }
+        .bubble:active {
+          transform: scale(0.95);
+        }
+        .bubble-icon {
+          color: white;
+          font-size: 24px;
+          font-weight: bold;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+      </style>
+    </head>
+    <body>
+      <div class="bubble" onclick="restoreWindow()">
+        <div class="bubble-icon">🍣</div>
+      </div>
+      <script>
+        function restoreWindow() {
+          window.electronAPI.window.restore();
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
+  minimizedBubble.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(bubbleHTML)}`);
+
+  // Handle window closed
+  minimizedBubble.on('closed', () => {
+    minimizedBubble = null;
+  });
 };
 
 // This method will be called when Electron has finished
@@ -98,6 +191,8 @@ let savedClipboardItems: ClipboardItem[] = [];
 let savedLinkItems: LinkItem[] = [];
 let savedTaskItems: TaskItem[] = [];
 let chatWindow: BrowserWindow | null = null;
+let mainWindow: BrowserWindow | null = null;
+let minimizedBubble: BrowserWindow | null = null;
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -510,6 +605,33 @@ ipcMain.handle('chat-window:maximize', (event) => {
       window.maximize();
     }
   }
+});
+
+// Main window control handlers
+ipcMain.handle('window:minimize', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window && window === mainWindow) {
+    // Hide the main window and show the minimized bubble
+    window.hide();
+    createMinimizedBubble();
+    return { success: true };
+  }
+  return { success: false, error: 'Window not found' };
+});
+
+ipcMain.handle('window:restore', (event) => {
+  // This can be called from either the main window or the bubble
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // Hide the bubble and show the main window
+    if (minimizedBubble && !minimizedBubble.isDestroyed()) {
+      minimizedBubble.close();
+      minimizedBubble = null;
+    }
+    mainWindow.show();
+    mainWindow.focus();
+    return { success: true };
+  }
+  return { success: false, error: 'Main window not found' };
 });
 
 // In this file you can include the rest of your app's specific main process
