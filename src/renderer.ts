@@ -1832,14 +1832,13 @@ class ImagesManager {
         resultHtml = `
           <div class="generation-result">
             <p><strong>Your Prompt:</strong> ${Utils.escapeHtml(prompt)}</p>
-            <div class="image-comparison">
+            <div class="generated-image-container">
               <div class="image-container">
-                <p><strong>Original:</strong></p>
-                <img src="${this.currentImageData}" alt="Original image" class="generated-image">
-              </div>
-              <div class="image-container">
-                <p><strong>Generated:</strong></p>
-                <img src="${response.result}" alt="Generated image" class="generated-image">
+                <p><strong>Generated Image:</strong></p>
+                <img src="${response.result}" alt="Generated image" class="generated-image" id="generated-image-${Date.now()}">
+                <div class="image-actions">
+                  <button class="btn btn-secondary copy-image-btn" data-image-src="${response.result}">Copy Image</button>
+                </div>
               </div>
             </div>
           </div>
@@ -1862,6 +1861,9 @@ class ImagesManager {
       
       this.showResults(resultHtml, 'success');
       
+      // Add event listeners for copy buttons
+      this.addCopyButtonListeners();
+      
     } catch (error) {
       console.error('Image generation error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -1873,6 +1875,76 @@ class ImagesManager {
   private showResults(content: string, type: 'success' | 'error' | 'loading' | 'default') {
     this.imageResults.innerHTML = content;
     this.imageResults.className = `image-results ${type}`;
+  }
+
+  private addCopyButtonListeners() {
+    const copyButtons = this.imageResults.querySelectorAll('.copy-image-btn');
+    copyButtons.forEach(button => {
+      button.addEventListener('click', async (e) => {
+        const target = e.target as HTMLButtonElement;
+        const imageSrc = target.getAttribute('data-image-src');
+        
+        if (imageSrc) {
+          try {
+            await this.copyImageToClipboard(imageSrc);
+            this.showMessage('Image copied to clipboard!', 'success');
+            
+            // Visual feedback - temporarily change button text
+            const originalText = target.textContent;
+            target.textContent = 'Copied!';
+            target.disabled = true;
+            
+            setTimeout(() => {
+              target.textContent = originalText;
+              target.disabled = false;
+            }, 2000);
+            
+          } catch (error) {
+            console.error('Failed to copy image:', error);
+            this.showMessage('Failed to copy image to clipboard', 'error');
+          }
+        }
+      });
+    });
+  }
+
+  private async copyImageToClipboard(dataUrl: string) {
+    try {
+      // Convert data URL to blob
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      
+      // Use the Clipboard API to copy the image
+      if (navigator.clipboard && window.ClipboardItem) {
+        const clipboardItem = new ClipboardItem({
+          [blob.type]: blob
+        });
+        await navigator.clipboard.write([clipboardItem]);
+      } else {
+        // Fallback: create a temporary canvas and copy as image
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx?.drawImage(img, 0, 0);
+          
+          canvas.toBlob(async (blob) => {
+            if (blob && navigator.clipboard && window.ClipboardItem) {
+              const clipboardItem = new ClipboardItem({
+                [blob.type]: blob
+              });
+              await navigator.clipboard.write([clipboardItem]);
+            }
+          });
+        };
+        img.src = dataUrl;
+      }
+    } catch (error) {
+      console.error('Error copying image to clipboard:', error);
+      throw error;
+    }
   }
 
   private saveImageToLocalStorage() {

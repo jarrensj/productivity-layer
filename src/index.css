@@ -1311,8 +1311,48 @@ input:checked + .slider:before {
 
 .image-container .generated-image {
   width: 100%;
-  max-width: 180px;
+  max-width: 400px;
   height: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 10px;
+}
+
+.generated-image-container {
+  margin-top: 15px;
+}
+
+.generated-image-container .image-container {
+  text-align: center;
+}
+
+.generated-image-container .image-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.copy-image-btn {
+  background: #007AFF;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.copy-image-btn:hover {
+  background: #0056CC;
+  transform: translateY(-1px);
+}
+
+.copy-image-btn:disabled {
+  background: #28a745;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .chat-info {
