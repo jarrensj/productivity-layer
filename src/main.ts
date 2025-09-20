@@ -170,7 +170,7 @@ Text to check: "${text}"`
 
     return {
       success: true,
-      result: completion.choices[0]?.message?.content || "No response received from OpenAI."
+      result: completion.choices[0]?.message?.content || "Sorry, I couldn't analyze your text right now. Please try again."
     };
   } catch (error) {
     console.error('Grammar check error:', error);
