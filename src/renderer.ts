@@ -285,14 +285,23 @@ class ClipboardManager {
           const rect = element.getBoundingClientRect();
           const midY = rect.top + rect.height / 2;
           
-          // Remove previous indicators
-          element.classList.remove('drag-over-top', 'drag-over-bottom');
+          // Remove previous indicators from all items
+          this.itemsContainer.querySelectorAll('.clipboard-item').forEach(item => {
+            item.classList.remove('drag-over-top', 'drag-over-bottom');
+          });
           
-          // Add appropriate indicator
-          if (e.clientY < midY) {
+          const threshold = rect.height * 0.3; // 30% of item height as threshold
+          if (e.clientY < midY - threshold) {
             element.classList.add('drag-over-top');
-          } else {
+          } else if (e.clientY > midY + threshold) {
             element.classList.add('drag-over-bottom');
+          } else {
+            // In the middle zone, choose based on which half we're closer to
+            if (e.clientY < midY) {
+              element.classList.add('drag-over-top');
+            } else {
+              element.classList.add('drag-over-bottom');
+            }
           }
         }
       });
@@ -314,8 +323,8 @@ class ClipboardManager {
           const dropIndex = index;
           let newIndex = dropIndex;
           
-          // Determine if we're dropping above or below
-          if (e.clientY < midY) {
+          const threshold = rect.height * 0.3;
+          if (e.clientY < midY - threshold || (e.clientY < midY && e.clientY >= midY - threshold)) {
             newIndex = dropIndex;
           } else {
             newIndex = dropIndex + 1;
@@ -326,12 +335,16 @@ class ClipboardManager {
             newIndex--;
           }
           
-          // Reorder the items array
-          this.reorderItems(draggedIndex, newIndex);
+          // Only reorder if the position actually changed
+          if (draggedIndex !== newIndex) {
+            this.reorderItems(draggedIndex, newIndex);
+          }
         }
         
-        // Clean up
-        element.classList.remove('drag-over-top', 'drag-over-bottom');
+        // Clean up all indicators
+        this.itemsContainer.querySelectorAll('.clipboard-item').forEach(item => {
+          item.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
       });
     });
   }
