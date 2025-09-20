@@ -12,6 +12,13 @@ interface ClipboardItem {
   timestamp: number;
 }
 
+interface LinkItem {
+  id: string;
+  name: string;
+  url: string;
+  timestamp: number;
+}
+
 interface ElectronAPI {
   clipboard: {
     writeText: (text: string) => Promise<boolean>;
@@ -20,6 +27,16 @@ interface ElectronAPI {
     getSavedItems: () => Promise<ClipboardItem[]>;
     deleteItem: (id: string, items: ClipboardItem[]) => Promise<ClipboardItem[]>;
     clearAll: () => Promise<ClipboardItem[]>;
+  };
+  grammar: {
+    checkGrammar: (text: string) => Promise<{success: boolean; result?: string; error?: string}>;
+  };
+  links: {
+    saveLink: (name: string, url: string, items: LinkItem[]) => Promise<{items: LinkItem[], savedItem: LinkItem} | {success: false, error: string}>;
+    getSavedLinks: () => Promise<LinkItem[]>;
+    deleteLink: (id: string, items: LinkItem[]) => Promise<LinkItem[]>;
+    clearAllLinks: () => Promise<LinkItem[]>;
+    openLink: (url: string) => Promise<{success: boolean; error?: string}>;
   };
 }
 
@@ -47,6 +64,7 @@ class ClipboardManager {
     this.setupEventListeners();
     await this.loadSavedItems();
     this.setupKeyboardShortcuts();
+    this.loadTabPreferences();
   }
 
   private saveToLocalStorage() {
@@ -68,13 +86,88 @@ class ClipboardManager {
   }
 
   private setupEventListeners() {
-    // Clear all button
+    // Settings button - navigates to settings page
+    document.getElementById('settings-btn')?.addEventListener('click', () => {
+      this.navigateToSettings();
+    });
+
+    // Back to app button - navigates back to main app
+    document.getElementById('back-to-app')?.addEventListener('click', () => {
+      this.navigateToMainApp();
+    });
+
+    // Clear all button (now in settings page)
     document.getElementById('clear-all')?.addEventListener('click', async () => {
       if (confirm('Clear all saved clipboard items?')) {
         this.items = await window.electronAPI.clipboard.clearAll();
         this.saveToLocalStorage();
         this.renderItems();
       }
+    });
+
+    // Clear all links button
+    document.getElementById('clear-all-links')?.addEventListener('click', async () => {
+      if (confirm('Clear all saved links?')) {
+        try {
+          await window.electronAPI.links.clearAllLinks();
+          // Find the links manager instance and update it
+          const linksEvent = new CustomEvent('clearAllLinks');
+          document.dispatchEvent(linksEvent);
+          this.showMessage('All links cleared successfully', 'success');
+        } catch (error) {
+          console.error('Failed to clear links:', error);
+          this.showMessage('Failed to clear links', 'error');
+        }
+      }
+    });
+
+    // Tab visibility toggles
+    document.getElementById('clipboard-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('clipboard')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('clipboard', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
+    });
+
+    document.getElementById('grammar-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('grammar')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('grammar', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
+    });
+
+    document.getElementById('links-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('links')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('links', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
     });
 
     // Save input button
@@ -406,18 +499,560 @@ class ClipboardManager {
       }, 3000);
     }
   }
+
+  private navigateToSettings() {
+    const mainApp = document.getElementById('main-app');
+    const settingsPage = document.getElementById('settings-page');
+    
+    if (mainApp && settingsPage) {
+      mainApp.style.display = 'none';
+      settingsPage.style.display = 'flex';
+    }
+  }
+
+  private navigateToMainApp() {
+    const mainApp = document.getElementById('main-app');
+    const settingsPage = document.getElementById('settings-page');
+    
+    if (mainApp && settingsPage) {
+      settingsPage.style.display = 'none';
+      mainApp.style.display = 'flex';
+    }
+  }
+
+  private toggleTabVisibility(tabName: string, isVisible: boolean) {
+    const tabButton = document.querySelector(`[data-tab="${tabName}"]`) as HTMLElement;
+    const tabContent = document.getElementById(`${tabName}-tab`) as HTMLElement;
+    
+    if (tabButton && tabContent) {
+      if (isVisible) {
+        tabButton.style.display = 'block';
+      } else {
+        tabButton.style.display = 'none';
+        tabContent.classList.remove('active');
+        
+        // If this was the active tab, switch to the first visible tab
+        if (tabButton.classList.contains('active')) {
+          tabButton.classList.remove('active');
+          const firstVisibleTab = document.querySelector('.tab-btn:not([style*="display: none"])') as HTMLElement;
+          if (firstVisibleTab) {
+            firstVisibleTab.click();
+          }
+        }
+      }
+    }
+  }
+
+  private saveTabPreferences() {
+    const clipboardEnabled = (document.getElementById('clipboard-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    const grammarEnabled = (document.getElementById('grammar-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    const linksEnabled = (document.getElementById('links-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    
+    const preferences = {
+      clipboardTab: clipboardEnabled,
+      grammarTab: grammarEnabled,
+      linksTab: linksEnabled
+    };
+    
+    try {
+      localStorage.setItem('tabPreferences', JSON.stringify(preferences));
+    } catch (error) {
+      console.error('Failed to save tab preferences:', error);
+    }
+  }
+
+  private loadTabPreferences() {
+    try {
+      const stored = localStorage.getItem('tabPreferences');
+      const preferences = stored ? JSON.parse(stored) : { clipboardTab: true, grammarTab: true, linksTab: true };
+      
+      // Update toggle states
+      const clipboardToggle = document.getElementById('clipboard-tab-toggle') as HTMLInputElement;
+      const grammarToggle = document.getElementById('grammar-tab-toggle') as HTMLInputElement;
+      const linksToggle = document.getElementById('links-tab-toggle') as HTMLInputElement;
+      
+      if (clipboardToggle) {
+        clipboardToggle.checked = preferences.clipboardTab;
+        this.toggleTabVisibility('clipboard', preferences.clipboardTab);
+      }
+      
+      if (grammarToggle) {
+        grammarToggle.checked = preferences.grammarTab;
+        this.toggleTabVisibility('grammar', preferences.grammarTab);
+      }
+      
+      if (linksToggle) {
+        linksToggle.checked = preferences.linksTab ?? true;
+        this.toggleTabVisibility('links', preferences.linksTab ?? true);
+      }
+      
+      // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
+      setTimeout(() => {
+        this.ensureActiveTab();
+      }, 100);
+    } catch (error) {
+      console.error('Failed to load tab preferences:', error);
+    }
+  }
+
+  private ensureActiveTab() {
+    const activeTab = document.querySelector('.tab-btn.active:not([style*="display: none"])');
+    if (!activeTab) {
+      // Find the first visible tab and make it active
+      const firstVisibleTab = document.querySelector('.tab-btn:not([style*="display: none"])') as HTMLElement;
+      if (firstVisibleTab) {
+        firstVisibleTab.click();
+      }
+    } else {
+      // Ensure the active tab's content is actually visible
+      const tabName = activeTab.getAttribute('data-tab');
+      if (tabName) {
+        const tabContent = document.getElementById(`${tabName}-tab`);
+        if (tabContent && !tabContent.classList.contains('active')) {
+          (activeTab as HTMLElement).click();
+        }
+      }
+    }
+  }
+
+  private canDisableTab(tabName: string): boolean {
+    const clipboardToggle = document.getElementById('clipboard-tab-toggle') as HTMLInputElement;
+    const grammarToggle = document.getElementById('grammar-tab-toggle') as HTMLInputElement;
+    const linksToggle = document.getElementById('links-tab-toggle') as HTMLInputElement;
+    
+    if (!clipboardToggle || !grammarToggle || !linksToggle) return false;
+    
+    // Count how many tabs would remain enabled after disabling this one
+    const remainingTabs = [];
+    if (tabName !== 'clipboard' && clipboardToggle.checked) remainingTabs.push('clipboard');
+    if (tabName !== 'grammar' && grammarToggle.checked) remainingTabs.push('grammar');
+    if (tabName !== 'links' && linksToggle.checked) remainingTabs.push('links');
+    
+    // Allow disabling only if at least one tab would remain
+    return remainingTabs.length > 0;
+  }
 }
 
-// Initialize the clipboard manager when DOM is ready
+// Tab Management Class
+class TabManager {
+  private activeTab: string = 'clipboard';
+  
+  constructor() {
+    this.init();
+  }
+  
+  private init() {
+    this.setupTabListeners();
+  }
+  
+  private setupTabListeners() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const tabName = target.dataset.tab;
+        if (tabName) {
+          this.switchTab(tabName);
+        }
+      });
+    });
+  }
+  
+  private switchTab(tabName: string) {
+    if (this.activeTab === tabName) return;
+    
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    document.querySelector(`[data-tab="${tabName}"]`)?.classList.add('active');
+    
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(content => {
+      content.classList.remove('active');
+    });
+    document.getElementById(`${tabName}-tab`)?.classList.add('active');
+    
+    this.activeTab = tabName;
+  }
+}
+
+// Grammar Checker Class
+class GrammarChecker {
+  private grammarInput: HTMLTextAreaElement;
+  private grammarResults: HTMLElement;
+  private checkButton: HTMLElement;
+  
+  constructor() {
+    this.grammarInput = document.getElementById('grammar-input') as HTMLTextAreaElement;
+    this.grammarResults = document.getElementById('grammar-results')!;
+    this.checkButton = document.getElementById('check-grammar')!;
+    
+    this.init();
+  }
+  
+  private init() {
+    this.setupEventListeners();
+  }
+  
+  private setupEventListeners() {
+    this.checkButton.addEventListener('click', () => {
+      this.checkGrammar();
+    });
+    
+    // Allow Ctrl/Cmd + Enter to check grammar
+    this.grammarInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        this.checkGrammar();
+      }
+    });
+  }
+  
+  private async checkGrammar() {
+    const text = this.grammarInput.value.trim();
+    
+    if (!text) {
+      this.showResults('Please enter some text to check.', 'error');
+      return;
+    }
+    
+    // Show loading state
+    this.showResults('Checking grammar...', 'loading');
+    this.checkButton.textContent = 'Checking...';
+    this.checkButton.setAttribute('disabled', 'true');
+    
+    try {
+      // Simple grammar check implementation
+      const result = await this.performGrammarCheck(text);
+      this.showResults(result, 'success');
+    } catch (error) {
+      this.showResults('Error checking grammar. Please try again.', 'error');
+    } finally {
+      this.checkButton.textContent = 'Check Grammar';
+      this.checkButton.removeAttribute('disabled');
+    }
+  }
+  
+  private async performGrammarCheck(text: string): Promise<string> {
+    try {
+      const response = await window.electronAPI.grammar.checkGrammar(text);
+      
+      if (response.success) {
+        return response.result || "No response received from OpenAI.";
+      } else {
+        return `Error: ${response.error || "Unknown error occurred"}`;
+      }
+    } catch (error) {
+      console.error('Grammar check error:', error);
+      return "Error: Failed to check grammar. Please try again.";
+    }
+  }
+  
+  private showResults(content: string, type: 'success' | 'error' | 'loading') {
+    this.grammarResults.innerHTML = content;
+    this.grammarResults.className = `grammar-results ${type}`;
+  }
+}
+
+// Links Manager Class
+class LinksManager {
+  private items: LinkItem[] = [];
+  private itemsContainer: HTMLElement;
+  private itemsCount: HTMLElement;
+  private linkNameInput: HTMLInputElement;
+  private linkUrlInput: HTMLInputElement;
+
+  constructor() {
+    this.itemsContainer = document.getElementById('links-items')!;
+    this.itemsCount = document.getElementById('links-count')!;
+    this.linkNameInput = document.getElementById('link-name-input') as HTMLInputElement;
+    this.linkUrlInput = document.getElementById('link-url-input') as HTMLInputElement;
+    
+    this.init();
+  }
+
+  private async init() {
+    this.setupEventListeners();
+    await this.loadSavedItems();
+    this.setupGlobalEventListeners();
+  }
+
+  private setupGlobalEventListeners() {
+    document.addEventListener('clearAllLinks', async () => {
+      this.items = [];
+      this.saveToLocalStorage();
+      this.renderItems();
+    });
+  }
+
+  private saveToLocalStorage() {
+    try {
+      localStorage.setItem('linkItems', JSON.stringify(this.items));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  }
+
+  private loadFromLocalStorage(): LinkItem[] {
+    try {
+      const stored = localStorage.getItem('linkItems');
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Failed to load from localStorage:', error);
+      return [];
+    }
+  }
+
+  private validateUrl(url: string): boolean {
+    if (!url || url.length < 3) {
+      return false;
+    }
+    
+    const withoutProtocol = url.replace(/^https?:\/\//, '');
+    if (!withoutProtocol.includes('.')) {
+      return false;
+    }
+    
+    if (/^[^a-zA-Z0-9]/.test(withoutProtocol) || /[^a-zA-Z0-9]$/.test(withoutProtocol)) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  private setupEventListeners() {
+    document.getElementById('add-link')?.addEventListener('click', async () => {
+      const name = this.linkNameInput.value.trim();
+      const url = this.linkUrlInput.value.trim();
+      
+      if (!url) {
+        this.showMessage('Please enter a URL', 'error');
+        return;
+      }
+      
+      if (!this.validateUrl(url)) {
+        this.showMessage('Please enter a valid URL', 'error');
+        return;
+      }
+      
+      await this.saveItem(name || url, url);
+      this.linkNameInput.value = '';
+      this.linkUrlInput.value = '';
+    });
+
+    [this.linkNameInput, this.linkUrlInput].forEach(input => {
+      input.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const name = this.linkNameInput.value.trim();
+          const url = this.linkUrlInput.value.trim();
+          
+          if (!url) {
+            this.showMessage('Please enter a URL', 'error');
+            return;
+          }
+          
+          if (!this.validateUrl(url)) {
+            this.showMessage('Please enter a valid URL', 'error');
+            return;
+          }
+          
+          await this.saveItem(name || url, url);
+          this.linkNameInput.value = '';
+          this.linkUrlInput.value = '';
+        }
+      });
+    });
+  }
+
+  private async saveItem(name: string, url: string) {
+    try {
+      const result = await window.electronAPI.links.saveLink(name, url, this.items);
+      
+      // Check if validation failed
+      if ('success' in result && !result.success) {
+        this.showMessage(result.error || 'Invalid URL format', 'error');
+        return;
+      }
+      
+      // Type guard to ensure we have the success result
+      if ('items' in result && 'savedItem' in result) {
+        this.items = result.items;
+        this.saveToLocalStorage();
+        this.renderItems();
+        
+        // Show feedback message based on whether it was a duplicate
+        if (result.savedItem && (result.savedItem as any).isDuplicate) {
+          this.showMessage('Link already exists', 'warning');
+          // Highlight the existing item
+          this.highlightExistingItem(result.savedItem.id);
+        } else {
+          this.showMessage('Link saved successfully', 'success');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save link:', error);
+      this.showMessage('Failed to save link', 'error');
+    }
+  }
+
+  private async loadSavedItems() {
+    try {
+      // First try to load from localStorage
+      const localItems = this.loadFromLocalStorage();
+      if (localItems.length > 0) {
+        this.items = localItems;
+      } else {
+        // Fallback to main process if localStorage is empty
+        this.items = await window.electronAPI.links.getSavedLinks();
+      }
+      this.renderItems();
+    } catch (error) {
+      console.error('Failed to load links:', error);
+    }
+  }
+
+  private renderItems() {
+    this.itemsCount.textContent = this.items.length.toString();
+    
+    if (this.items.length === 0) {
+      this.itemsContainer.innerHTML = '<div class="no-items">No saved links</div>';
+      return;
+    }
+
+    this.itemsContainer.innerHTML = this.items
+      .map(item => this.renderItem(item))
+      .join('');
+
+    // Add event listeners to newly created items
+    this.itemsContainer.querySelectorAll('.link-item').forEach(item => {
+      item.addEventListener('click', async (e) => {
+        // Don't trigger on delete button clicks
+        if ((e.target as HTMLElement).classList.contains('delete-btn')) {
+          return;
+        }
+        
+        const id = (item as HTMLElement).dataset.id!;
+        const linkItem = this.items.find(i => i.id === id);
+        if (linkItem) {
+          try {
+            await window.electronAPI.links.openLink(linkItem.url);
+          } catch (error) {
+            console.error('Failed to open link:', error);
+            this.showMessage('Failed to open link', 'error');
+          }
+        }
+      });
+    });
+
+    this.itemsContainer.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation(); // Prevent link opening
+        const id = (e.target as HTMLElement).dataset.id!;
+        this.items = await window.electronAPI.links.deleteLink(id, this.items);
+        this.saveToLocalStorage();
+        this.renderItems();
+      });
+    });
+  }
+
+  private renderItem(item: LinkItem): string {
+    const timeAgo = this.formatTimeAgo(item.timestamp);
+    
+    return `
+      <div class="link-item" data-id="${item.id}" title="Click to open ${this.escapeHtml(item.url)}">
+        <div class="item-content">
+          <div class="item-text">${this.escapeHtml(item.name)}</div>
+          <div class="item-meta">${this.escapeHtml(item.url)} • ${timeAgo}</div>
+        </div>
+        <div class="item-actions">
+          <button class="delete-btn btn btn-small btn-danger" data-id="${item.id}" title="Delete link">×</button>
+        </div>
+      </div>
+    `;
+  }
+
+  private formatTimeAgo(timestamp: number): string {
+    const now = Date.now();
+    const diff = now - timestamp;
+    
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (days > 0) return `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    if (minutes > 0) return `${minutes}m ago`;
+    return 'Just now';
+  }
+
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  private highlightExistingItem(itemId: string) {
+    // Find the item element and add highlight
+    const itemElement = document.querySelector(`[data-id="${itemId}"]`);
+    if (itemElement) {
+      itemElement.classList.add('highlight-existing');
+      
+      // Remove highlight after animation completes
+      setTimeout(() => {
+        itemElement.classList.remove('highlight-existing');
+      }, 2000);
+    }
+  }
+
+  private showMessage(message: string, type: 'success' | 'warning' | 'error') {
+    // Remove any existing message
+    const existingMessage = document.querySelector('.toast-message');
+    if (existingMessage) {
+      existingMessage.remove();
+    }
+
+    // Create toast message
+    const toast = document.createElement('div');
+    toast.className = `toast-message toast-${type}`;
+    toast.textContent = message;
+
+    // Add to container (find the currently visible container)
+    const container = document.querySelector('.overlay-container:not([style*="display: none"])');
+    if (container) {
+      container.appendChild(toast);
+
+      // Auto-remove after 3 seconds
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.classList.add('fade-out');
+          setTimeout(() => {
+            toast.remove();
+          }, 300);
+        }
+      }, 3000);
+    }
+  }
+}
+
+// Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  // Wait for electronAPI to be available
+  // Initialize tab manager
+  new TabManager();
+  
+  // Initialize grammar checker
+  new GrammarChecker();
+  
+  // Wait for electronAPI to be available for clipboard functionality
   if (window.electronAPI) {
     new ClipboardManager();
+    new LinksManager();
   } else {
     // Retry after a short delay
     setTimeout(() => {
       if (window.electronAPI) {
         new ClipboardManager();
+        new LinksManager();
       }
     }, 100);
   }

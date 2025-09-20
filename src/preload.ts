@@ -3,7 +3,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
-// Expose clipboard API to renderer process
+// Expose APIs to renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
   clipboard: {
     writeText: (text: string) => ipcRenderer.invoke('clipboard:write-text', text),
@@ -12,5 +12,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSavedItems: () => ipcRenderer.invoke('clipboard:get-items'),
     deleteItem: (id: string, items: any[]) => ipcRenderer.invoke('clipboard:delete-item', id, items),
     clearAll: () => ipcRenderer.invoke('clipboard:clear-all'),
+  },
+  grammar: {
+    checkGrammar: (text: string) => ipcRenderer.invoke('grammar:check', text),
+  },
+  links: {
+    saveLink: (name: string, url: string, items: any[]) => ipcRenderer.invoke('links:save-item', name, url, items),
+    getSavedLinks: () => ipcRenderer.invoke('links:get-items'),
+    deleteLink: (id: string, items: any[]) => ipcRenderer.invoke('links:delete-item', id, items),
+    clearAllLinks: () => ipcRenderer.invoke('links:clear-all'),
+    openLink: (url: string) => ipcRenderer.invoke('links:open-link', url),
   },
 });
