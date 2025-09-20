@@ -32,7 +32,7 @@ interface ElectronAPI {
     checkGrammar: (text: string) => Promise<{success: boolean; result?: string; error?: string}>;
   };
   links: {
-    saveLink: (name: string, url: string, items: LinkItem[]) => Promise<{items: LinkItem[], savedItem: LinkItem}>;
+    saveLink: (name: string, url: string, items: LinkItem[]) => Promise<{items: LinkItem[], savedItem: LinkItem} | {success: false, error: string}>;
     getSavedLinks: () => Promise<LinkItem[]>;
     deleteLink: (id: string, items: LinkItem[]) => Promise<LinkItem[]>;
     clearAllLinks: () => Promise<LinkItem[]>;
@@ -658,20 +658,43 @@ class LinksManager {
     }
   }
 
+  private validateUrl(url: string): boolean {
+    if (!url || url.length < 3) {
+      return false;
+    }
+    
+    const withoutProtocol = url.replace(/^https?:\/\//, '');
+    if (!withoutProtocol.includes('.')) {
+      return false;
+    }
+    
+    if (/^[^a-zA-Z0-9]/.test(withoutProtocol) || /[^a-zA-Z0-9]$/.test(withoutProtocol)) {
+      return false;
+    }
+    
+    return true;
+  }
+
   private setupEventListeners() {
-    // Add link button
     document.getElementById('add-link')?.addEventListener('click', async () => {
       const name = this.linkNameInput.value.trim();
       const url = this.linkUrlInput.value.trim();
       
-      if (url) {
-        await this.saveItem(name || url, url);
-        this.linkNameInput.value = '';
-        this.linkUrlInput.value = '';
+      if (!url) {
+        this.showMessage('Please enter a URL', 'error');
+        return;
       }
+      
+      if (!this.validateUrl(url)) {
+        this.showMessage('Please enter a valid URL', 'error');
+        return;
+      }
+      
+      await this.saveItem(name || url, url);
+      this.linkNameInput.value = '';
+      this.linkUrlInput.value = '';
     });
 
-    // Enter key to save
     [this.linkNameInput, this.linkUrlInput].forEach(input => {
       input.addEventListener('keydown', async (e) => {
         if (e.key === 'Enter') {
@@ -679,11 +702,19 @@ class LinksManager {
           const name = this.linkNameInput.value.trim();
           const url = this.linkUrlInput.value.trim();
           
-          if (url) {
-            await this.saveItem(name || url, url);
-            this.linkNameInput.value = '';
-            this.linkUrlInput.value = '';
+          if (!url) {
+            this.showMessage('Please enter a URL', 'error');
+            return;
           }
+          
+          if (!this.validateUrl(url)) {
+            this.showMessage('Please enter a valid URL', 'error');
+            return;
+          }
+          
+          await this.saveItem(name || url, url);
+          this.linkNameInput.value = '';
+          this.linkUrlInput.value = '';
         }
       });
     });
@@ -693,17 +724,26 @@ class LinksManager {
     try {
       const result = await window.electronAPI.links.saveLink(name, url, this.items);
       
-      this.items = result.items;
-      this.saveToLocalStorage();
-      this.renderItems();
+      // Check if validation failed
+      if ('success' in result && !result.success) {
+        this.showMessage(result.error || 'Invalid URL format', 'error');
+        return;
+      }
       
-      // Show feedback message based on whether it was a duplicate
-      if (result.savedItem && (result.savedItem as any).isDuplicate) {
-        this.showMessage('Link already exists', 'warning');
-        // Highlight the existing item
-        this.highlightExistingItem(result.savedItem.id);
-      } else {
-        this.showMessage('Link saved successfully', 'success');
+      // Type guard to ensure we have the success result
+      if ('items' in result && 'savedItem' in result) {
+        this.items = result.items;
+        this.saveToLocalStorage();
+        this.renderItems();
+        
+        // Show feedback message based on whether it was a duplicate
+        if (result.savedItem && (result.savedItem as any).isDuplicate) {
+          this.showMessage('Link already exists', 'warning');
+          // Highlight the existing item
+          this.highlightExistingItem(result.savedItem.id);
+        } else {
+          this.showMessage('Link saved successfully', 'success');
+        }
       }
     } catch (error) {
       console.error('Failed to save link:', error);

@@ -191,18 +191,75 @@ ipcMain.handle('links:save-item', (event, name: string, url: string, items: Link
   // Update the main process array with the current items from renderer
   savedLinkItems = items || savedLinkItems;
   
-  // Validate URL format
-  try {
-    new URL(url);
-  } catch {
-    // If URL doesn't have protocol, add https://
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = 'https://' + url;
+  let normalizedUrl = url.trim();
+  
+  if (!normalizedUrl || normalizedUrl.length < 3) {
+    return {
+      success: false,
+      error: 'Please enter a valid URL.'
+    };
+  }
+  
+  let hostnameToValidate = normalizedUrl;
+  if (normalizedUrl.startsWith('http://')) {
+    hostnameToValidate = normalizedUrl.substring(7);
+  } else if (normalizedUrl.startsWith('https://')) {
+    hostnameToValidate = normalizedUrl.substring(8);
+  }
+  
+  hostnameToValidate = hostnameToValidate.split('/')[0].split(':')[0];
+  
+  const isValidDomain = (hostname: string): boolean => {
+    if (hostname === 'localhost') {
+      return true;
     }
+    
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipRegex.test(hostname)) {
+      return true;
+    }
+    
+    if (!hostname.includes('.')) {
+      return false;
+    }
+    
+    const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+    if (!domainRegex.test(hostname)) {
+      return false;
+    }
+    
+    const parts = hostname.split('.');
+    const tld = parts[parts.length - 1];
+    if (tld.length < 2) {
+      return false;
+    }
+    
+    return true;
+  };
+  
+  if (!isValidDomain(hostnameToValidate)) {
+    return {
+      success: false,
+      error: 'Invalid domain name".'
+    };
+  }
+  
+  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+    normalizedUrl = 'https://' + normalizedUrl;
+  }
+  
+  try {
+    const urlObj = new URL(normalizedUrl);
+    normalizedUrl = urlObj.toString();
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Invalid URL format.'
+    };
   }
   
   // Check if link already exists to avoid duplicates
-  const existingItem = savedLinkItems.find(item => item.url === url);
+  const existingItem = savedLinkItems.find(item => item.url === normalizedUrl);
   if (existingItem) {
     return { items: savedLinkItems, savedItem: { ...existingItem, isDuplicate: true } };
   }
@@ -210,7 +267,7 @@ ipcMain.handle('links:save-item', (event, name: string, url: string, items: Link
   const newItem: LinkItem = {
     id: randomUUID(),
     name,
-    url,
+    url: normalizedUrl,
     timestamp: Date.now(),
   };
   
