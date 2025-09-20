@@ -287,6 +287,9 @@ class ClipboardManager {
         this.renderItems();
       });
     });
+
+    // Add drag and drop event listeners
+    this.setupDragAndDrop();
   }
 
   private renderItem(item: ClipboardItem): string {
@@ -294,7 +297,8 @@ class ClipboardManager {
     const timeAgo = this.formatTimeAgo(item.timestamp);
     
     return `
-      <div class="clipboard-item" data-id="${item.id}">
+      <div class="clipboard-item" data-id="${item.id}" draggable="true">
+        <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
         <div class="item-content">
           <div class="item-text" title="${this.escapeHtml(item.text)}">${this.escapeHtml(preview)}</div>
           <div class="item-meta">${timeAgo}</div>
@@ -338,6 +342,122 @@ class ClipboardManager {
     }, 1000);
   }
 
+  private setupDragAndDrop() {
+    let draggedElement: HTMLElement | null = null;
+    let draggedIndex: number = -1;
+
+    this.itemsContainer.querySelectorAll('.clipboard-item').forEach((item, index) => {
+      const element = item as HTMLElement;
+      
+      element.addEventListener('dragstart', (e) => {
+        draggedElement = element;
+        draggedIndex = index;
+        element.classList.add('dragging');
+        
+        // Set drag effect
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/html', element.outerHTML);
+        }
+      });
+
+      element.addEventListener('dragend', () => {
+        element.classList.remove('dragging');
+        draggedElement = null;
+        draggedIndex = -1;
+        
+        // Remove all drop indicators
+        this.itemsContainer.querySelectorAll('.clipboard-item').forEach(item => {
+          item.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+      });
+
+      element.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (draggedElement && draggedElement !== element) {
+          const rect = element.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+          
+          // Remove previous indicators from all items
+          this.itemsContainer.querySelectorAll('.clipboard-item').forEach(item => {
+            item.classList.remove('drag-over-top', 'drag-over-bottom');
+          });
+          
+          const threshold = rect.height * 0.3; // 30% of item height as threshold
+          if (e.clientY < midY - threshold) {
+            element.classList.add('drag-over-top');
+          } else if (e.clientY > midY + threshold) {
+            element.classList.add('drag-over-bottom');
+          } else {
+            // In the middle zone, choose based on which half we're closer to
+            if (e.clientY < midY) {
+              element.classList.add('drag-over-top');
+            } else {
+              element.classList.add('drag-over-bottom');
+            }
+          }
+        }
+      });
+
+      element.addEventListener('dragleave', (e) => {
+        // Only remove indicators if we're actually leaving the element
+        const rect = element.getBoundingClientRect();
+        if (e.clientX < rect.left || e.clientX > rect.right || 
+            e.clientY < rect.top || e.clientY > rect.bottom) {
+          element.classList.remove('drag-over-top', 'drag-over-bottom');
+        }
+      });
+
+      element.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (draggedElement && draggedElement !== element && draggedIndex !== -1) {
+          const rect = element.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+          const dropIndex = index;
+          let newIndex = dropIndex;
+          
+          const threshold = rect.height * 0.3;
+          if (e.clientY < midY - threshold || (e.clientY < midY && e.clientY >= midY - threshold)) {
+            newIndex = dropIndex;
+          } else {
+            newIndex = dropIndex + 1;
+          }
+          
+          // Adjust for the dragged item's current position
+          if (draggedIndex < newIndex) {
+            newIndex--;
+          }
+          
+          // Only reorder if the position actually changed
+          if (draggedIndex !== newIndex) {
+            this.reorderItems(draggedIndex, newIndex);
+          }
+        }
+        
+        // Clean up all indicators
+        this.itemsContainer.querySelectorAll('.clipboard-item').forEach(item => {
+          item.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+      });
+    });
+  }
+
+  private reorderItems(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+    
+    // Create a new array with the item moved
+    const newItems = [...this.items];
+    const [movedItem] = newItems.splice(fromIndex, 1);
+    newItems.splice(toIndex, 0, movedItem);
+    
+    // Update the items array
+    this.items = newItems;
+    
+    // Save to localStorage and re-render
+    this.saveToLocalStorage();
+    this.renderItems();
+  }
+
   private highlightExistingItem(itemId: string) {
     // Find the item element and add highlight
     const itemElement = document.querySelector(`[data-id="${itemId}"]`);
@@ -363,8 +483,8 @@ class ClipboardManager {
     toast.className = `toast-message toast-${type}`;
     toast.textContent = message;
 
-    // Add to container (find the currently visible container)
-    const container = document.querySelector('.overlay-container:not([style*="display: none"])');
+    // Add to container
+    const container = document.querySelector('.overlay-container');
     if (container) {
       container.appendChild(toast);
 
