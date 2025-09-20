@@ -487,7 +487,6 @@ body {
   font-style: italic;
   font-weight: 500;
 }
-
 .setting-item .btn {
   flex-shrink: 0;
   margin-left: auto;
@@ -544,6 +543,15 @@ input:checked + .slider:before {
 
 .slider:hover {
   box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+}
+
+/* Override btn-danger for settings buttons to not be circular */
+.setting-item .btn-danger {
+  width: auto;
+  height: auto;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
 }
 
 
