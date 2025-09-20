@@ -12,6 +12,13 @@ interface ClipboardItem {
   timestamp: number;
 }
 
+interface LinkItem {
+  id: string;
+  name: string;
+  url: string;
+  timestamp: number;
+}
+
 interface ElectronAPI {
   clipboard: {
     writeText: (text: string) => Promise<boolean>;
@@ -23,6 +30,13 @@ interface ElectronAPI {
   };
   grammar: {
     checkGrammar: (text: string) => Promise<{success: boolean; result?: string; error?: string}>;
+  };
+  links: {
+    saveLink: (name: string, url: string, items: LinkItem[]) => Promise<{items: LinkItem[], savedItem: LinkItem}>;
+    getSavedLinks: () => Promise<LinkItem[]>;
+    deleteLink: (id: string, items: LinkItem[]) => Promise<LinkItem[]>;
+    clearAllLinks: () => Promise<LinkItem[]>;
+    openLink: (url: string) => Promise<{success: boolean; error?: string}>;
   };
 }
 
@@ -120,6 +134,22 @@ class ClipboardManager {
       }
       
       this.toggleTabVisibility('grammar', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
+    });
+
+    document.getElementById('links-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('links')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('links', isEnabled);
       this.saveTabPreferences();
       setTimeout(() => this.ensureActiveTab(), 50);
     });
@@ -380,10 +410,12 @@ class ClipboardManager {
   private saveTabPreferences() {
     const clipboardEnabled = (document.getElementById('clipboard-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const grammarEnabled = (document.getElementById('grammar-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    const linksEnabled = (document.getElementById('links-tab-toggle') as HTMLInputElement)?.checked ?? true;
     
     const preferences = {
       clipboardTab: clipboardEnabled,
-      grammarTab: grammarEnabled
+      grammarTab: grammarEnabled,
+      linksTab: linksEnabled
     };
     
     try {
@@ -396,11 +428,12 @@ class ClipboardManager {
   private loadTabPreferences() {
     try {
       const stored = localStorage.getItem('tabPreferences');
-      const preferences = stored ? JSON.parse(stored) : { clipboardTab: true, grammarTab: true };
+      const preferences = stored ? JSON.parse(stored) : { clipboardTab: true, grammarTab: true, linksTab: true };
       
       // Update toggle states
       const clipboardToggle = document.getElementById('clipboard-tab-toggle') as HTMLInputElement;
       const grammarToggle = document.getElementById('grammar-tab-toggle') as HTMLInputElement;
+      const linksToggle = document.getElementById('links-tab-toggle') as HTMLInputElement;
       
       if (clipboardToggle) {
         clipboardToggle.checked = preferences.clipboardTab;
@@ -410,6 +443,11 @@ class ClipboardManager {
       if (grammarToggle) {
         grammarToggle.checked = preferences.grammarTab;
         this.toggleTabVisibility('grammar', preferences.grammarTab);
+      }
+      
+      if (linksToggle) {
+        linksToggle.checked = preferences.linksTab ?? true;
+        this.toggleTabVisibility('links', preferences.linksTab ?? true);
       }
       
       // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
@@ -444,13 +482,15 @@ class ClipboardManager {
   private canDisableTab(tabName: string): boolean {
     const clipboardToggle = document.getElementById('clipboard-tab-toggle') as HTMLInputElement;
     const grammarToggle = document.getElementById('grammar-tab-toggle') as HTMLInputElement;
+    const linksToggle = document.getElementById('links-tab-toggle') as HTMLInputElement;
     
-    if (!clipboardToggle || !grammarToggle) return false;
+    if (!clipboardToggle || !grammarToggle || !linksToggle) return false;
     
     // Count how many tabs would remain enabled after disabling this one
     const remainingTabs = [];
     if (tabName !== 'clipboard' && clipboardToggle.checked) remainingTabs.push('clipboard');
     if (tabName !== 'grammar' && grammarToggle.checked) remainingTabs.push('grammar');
+    if (tabName !== 'links' && linksToggle.checked) remainingTabs.push('links');
     
     // Allow disabling only if at least one tab would remain
     return remainingTabs.length > 0;
@@ -578,6 +618,238 @@ class GrammarChecker {
   }
 }
 
+// Links Manager Class
+class LinksManager {
+  private items: LinkItem[] = [];
+  private itemsContainer: HTMLElement;
+  private itemsCount: HTMLElement;
+  private linkNameInput: HTMLInputElement;
+  private linkUrlInput: HTMLInputElement;
+
+  constructor() {
+    this.itemsContainer = document.getElementById('links-items')!;
+    this.itemsCount = document.getElementById('links-count')!;
+    this.linkNameInput = document.getElementById('link-name-input') as HTMLInputElement;
+    this.linkUrlInput = document.getElementById('link-url-input') as HTMLInputElement;
+    
+    this.init();
+  }
+
+  private async init() {
+    this.setupEventListeners();
+    await this.loadSavedItems();
+  }
+
+  private saveToLocalStorage() {
+    try {
+      localStorage.setItem('linkItems', JSON.stringify(this.items));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  }
+
+  private loadFromLocalStorage(): LinkItem[] {
+    try {
+      const stored = localStorage.getItem('linkItems');
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Failed to load from localStorage:', error);
+      return [];
+    }
+  }
+
+  private setupEventListeners() {
+    // Add link button
+    document.getElementById('add-link')?.addEventListener('click', async () => {
+      const name = this.linkNameInput.value.trim();
+      const url = this.linkUrlInput.value.trim();
+      
+      if (name && url) {
+        await this.saveItem(name, url);
+        this.linkNameInput.value = '';
+        this.linkUrlInput.value = '';
+      }
+    });
+
+    // Enter key to save
+    [this.linkNameInput, this.linkUrlInput].forEach(input => {
+      input.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const name = this.linkNameInput.value.trim();
+          const url = this.linkUrlInput.value.trim();
+          
+          if (name && url) {
+            await this.saveItem(name, url);
+            this.linkNameInput.value = '';
+            this.linkUrlInput.value = '';
+          }
+        }
+      });
+    });
+  }
+
+  private async saveItem(name: string, url: string) {
+    try {
+      const result = await window.electronAPI.links.saveLink(name, url, this.items);
+      
+      this.items = result.items;
+      this.saveToLocalStorage();
+      this.renderItems();
+      
+      // Show feedback message based on whether it was a duplicate
+      if (result.savedItem && (result.savedItem as any).isDuplicate) {
+        this.showMessage('Link already exists', 'warning');
+        // Highlight the existing item
+        this.highlightExistingItem(result.savedItem.id);
+      } else {
+        this.showMessage('Link saved successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Failed to save link:', error);
+      this.showMessage('Failed to save link', 'error');
+    }
+  }
+
+  private async loadSavedItems() {
+    try {
+      // First try to load from localStorage
+      const localItems = this.loadFromLocalStorage();
+      if (localItems.length > 0) {
+        this.items = localItems;
+      } else {
+        // Fallback to main process if localStorage is empty
+        this.items = await window.electronAPI.links.getSavedLinks();
+      }
+      this.renderItems();
+    } catch (error) {
+      console.error('Failed to load links:', error);
+    }
+  }
+
+  private renderItems() {
+    this.itemsCount.textContent = this.items.length.toString();
+    
+    if (this.items.length === 0) {
+      this.itemsContainer.innerHTML = '<div class="no-items">No saved links</div>';
+      return;
+    }
+
+    this.itemsContainer.innerHTML = this.items
+      .map(item => this.renderItem(item))
+      .join('');
+
+    // Add event listeners to newly created items
+    this.itemsContainer.querySelectorAll('.link-item').forEach(item => {
+      item.addEventListener('click', async (e) => {
+        // Don't trigger on delete button clicks
+        if ((e.target as HTMLElement).classList.contains('delete-btn')) {
+          return;
+        }
+        
+        const id = (item as HTMLElement).dataset.id!;
+        const linkItem = this.items.find(i => i.id === id);
+        if (linkItem) {
+          try {
+            await window.electronAPI.links.openLink(linkItem.url);
+          } catch (error) {
+            console.error('Failed to open link:', error);
+            this.showMessage('Failed to open link', 'error');
+          }
+        }
+      });
+    });
+
+    this.itemsContainer.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation(); // Prevent link opening
+        const id = (e.target as HTMLElement).dataset.id!;
+        this.items = await window.electronAPI.links.deleteLink(id, this.items);
+        this.saveToLocalStorage();
+        this.renderItems();
+      });
+    });
+  }
+
+  private renderItem(item: LinkItem): string {
+    const timeAgo = this.formatTimeAgo(item.timestamp);
+    
+    return `
+      <div class="link-item" data-id="${item.id}" title="Click to open ${this.escapeHtml(item.url)}">
+        <div class="item-content">
+          <div class="item-text">${this.escapeHtml(item.name)}</div>
+          <div class="item-meta">${this.escapeHtml(item.url)} • ${timeAgo}</div>
+        </div>
+        <div class="item-actions">
+          <button class="delete-btn btn btn-small btn-danger" data-id="${item.id}" title="Delete link">×</button>
+        </div>
+      </div>
+    `;
+  }
+
+  private formatTimeAgo(timestamp: number): string {
+    const now = Date.now();
+    const diff = now - timestamp;
+    
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (days > 0) return `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    if (minutes > 0) return `${minutes}m ago`;
+    return 'Just now';
+  }
+
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  private highlightExistingItem(itemId: string) {
+    // Find the item element and add highlight
+    const itemElement = document.querySelector(`[data-id="${itemId}"]`);
+    if (itemElement) {
+      itemElement.classList.add('highlight-existing');
+      
+      // Remove highlight after animation completes
+      setTimeout(() => {
+        itemElement.classList.remove('highlight-existing');
+      }, 2000);
+    }
+  }
+
+  private showMessage(message: string, type: 'success' | 'warning' | 'error') {
+    // Remove any existing message
+    const existingMessage = document.querySelector('.toast-message');
+    if (existingMessage) {
+      existingMessage.remove();
+    }
+
+    // Create toast message
+    const toast = document.createElement('div');
+    toast.className = `toast-message toast-${type}`;
+    toast.textContent = message;
+
+    // Add to container (find the currently visible container)
+    const container = document.querySelector('.overlay-container:not([style*="display: none"])');
+    if (container) {
+      container.appendChild(toast);
+
+      // Auto-remove after 3 seconds
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.classList.add('fade-out');
+          setTimeout(() => {
+            toast.remove();
+          }, 300);
+        }
+      }, 3000);
+    }
+  }
+}
+
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize tab manager
@@ -589,11 +861,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Wait for electronAPI to be available for clipboard functionality
   if (window.electronAPI) {
     new ClipboardManager();
+    new LinksManager();
   } else {
     // Retry after a short delay
     setTimeout(() => {
       if (window.electronAPI) {
         new ClipboardManager();
+        new LinksManager();
       }
     }, 100);
   }

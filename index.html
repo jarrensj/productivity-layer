@@ -18,6 +18,7 @@
       <div class="tab-navigation">
         <button class="tab-btn active" data-tab="clipboard">Clipboard</button>
         <button class="tab-btn" data-tab="grammar">Grammar</button>
+        <button class="tab-btn" data-tab="links">Links</button>
       </div>
       
       <!-- Clipboard Tab Content -->
@@ -47,6 +48,26 @@
           
           <div class="results-section">
             <div id="grammar-results" class="grammar-results">Enter text above and click "Check Grammar" to see results.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Links Tab Content -->
+      <div id="links-tab" class="tab-content">
+        <div class="links-content">
+          <div class="input-section">
+            <div class="link-input-row">
+              <input type="text" id="link-name-input" placeholder="link name" />
+              <input type="url" id="link-url-input" placeholder="website url" />
+            </div>
+            <button id="add-link" class="btn btn-primary">Add Link</button>
+          </div>
+          
+          <div class="items-section">
+            <div class="items-header">
+              <span>Saved Links (<span id="links-count">0</span>)</span>
+            </div>
+            <div id="links-items" class="links-items"></div>
           </div>
         </div>
       </div>
@@ -90,6 +111,16 @@
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="grammar-tab-toggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-item">
+            <div class="setting-description">
+              <strong>Links Tab</strong>
+              <p>Save and organize your favorite links for quick access.</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="links-tab-toggle" checked>
               <span class="slider"></span>
             </label>
           </div>

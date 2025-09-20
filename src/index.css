@@ -101,7 +101,8 @@ body {
 
 /* Content Area */
 .clipboard-content,
-.grammar-content {
+.grammar-content,
+.links-content {
   flex: 1;
   padding: 16px 20px;
   display: flex;
@@ -133,14 +134,45 @@ body {
   transition: border-color 0.2s;
 }
 
+/* Links input styles */
+.link-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+#link-name-input,
+#link-url-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.8);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+#link-name-input {
+  flex: 0.4;
+}
+
+#link-url-input {
+  flex: 0.6;
+}
+
 #clipboard-input:focus,
-#grammar-input:focus {
+#grammar-input:focus,
+#link-name-input:focus,
+#link-url-input:focus {
   border-color: #007AFF;
   box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
 }
 
 #clipboard-input::placeholder,
-#grammar-input::placeholder {
+#grammar-input::placeholder,
+#link-name-input::placeholder,
+#link-url-input::placeholder {
   color: #999;
 }
 
@@ -162,7 +194,8 @@ body {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-.clipboard-items {
+.clipboard-items,
+.links-items {
   flex: 1;
   overflow-y: auto;
   display: flex;
@@ -171,26 +204,31 @@ body {
   padding-right: 4px;
 }
 
-.clipboard-items::-webkit-scrollbar {
+.clipboard-items::-webkit-scrollbar,
+.links-items::-webkit-scrollbar {
   width: 6px;
 }
 
-.clipboard-items::-webkit-scrollbar-track {
+.clipboard-items::-webkit-scrollbar-track,
+.links-items::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.05);
   border-radius: 3px;
 }
 
-.clipboard-items::-webkit-scrollbar-thumb {
+.clipboard-items::-webkit-scrollbar-thumb,
+.links-items::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 3px;
 }
 
-.clipboard-items::-webkit-scrollbar-thumb:hover {
+.clipboard-items::-webkit-scrollbar-thumb:hover,
+.links-items::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.3);
 }
 
-/* Clipboard Item */
-.clipboard-item {
+/* Clipboard Item & Link Item */
+.clipboard-item,
+.link-item {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -202,11 +240,27 @@ body {
   gap: 12px;
 }
 
-.clipboard-item:hover {
+.clipboard-item:hover,
+.link-item:hover {
   background: rgba(255, 255, 255, 0.9);
   border-color: rgba(0, 0, 0, 0.15);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.link-item {
+  cursor: pointer;
+}
+
+.link-item:hover {
+  cursor: pointer;
+  background: rgba(0, 122, 255, 0.1);
+  border-color: rgba(0, 122, 255, 0.3);
+}
+
+.link-item:active {
+  transform: translateY(0);
+  background: rgba(0, 122, 255, 0.15);
 }
 
 /* Highlight existing item animation */
