@@ -50,6 +50,7 @@ class ClipboardManager {
     this.setupEventListeners();
     await this.loadSavedItems();
     this.setupKeyboardShortcuts();
+    this.loadTabPreferences();
   }
 
   private saveToLocalStorage() {
@@ -88,6 +89,39 @@ class ClipboardManager {
         this.saveToLocalStorage();
         this.renderItems();
       }
+    });
+
+    // Tab visibility toggles
+    document.getElementById('clipboard-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('clipboard')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('clipboard', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
+    });
+
+    document.getElementById('grammar-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('grammar')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('grammar', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
     });
 
     // Save input button
@@ -318,6 +352,108 @@ class ClipboardManager {
       settingsPage.style.display = 'none';
       mainApp.style.display = 'flex';
     }
+  }
+
+  private toggleTabVisibility(tabName: string, isVisible: boolean) {
+    const tabButton = document.querySelector(`[data-tab="${tabName}"]`) as HTMLElement;
+    const tabContent = document.getElementById(`${tabName}-tab`) as HTMLElement;
+    
+    if (tabButton && tabContent) {
+      if (isVisible) {
+        tabButton.style.display = 'block';
+      } else {
+        tabButton.style.display = 'none';
+        tabContent.classList.remove('active');
+        
+        // If this was the active tab, switch to the first visible tab
+        if (tabButton.classList.contains('active')) {
+          tabButton.classList.remove('active');
+          const firstVisibleTab = document.querySelector('.tab-btn:not([style*="display: none"])') as HTMLElement;
+          if (firstVisibleTab) {
+            firstVisibleTab.click();
+          }
+        }
+      }
+    }
+  }
+
+  private saveTabPreferences() {
+    const clipboardEnabled = (document.getElementById('clipboard-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    const grammarEnabled = (document.getElementById('grammar-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    
+    const preferences = {
+      clipboardTab: clipboardEnabled,
+      grammarTab: grammarEnabled
+    };
+    
+    try {
+      localStorage.setItem('tabPreferences', JSON.stringify(preferences));
+    } catch (error) {
+      console.error('Failed to save tab preferences:', error);
+    }
+  }
+
+  private loadTabPreferences() {
+    try {
+      const stored = localStorage.getItem('tabPreferences');
+      const preferences = stored ? JSON.parse(stored) : { clipboardTab: true, grammarTab: true };
+      
+      // Update toggle states
+      const clipboardToggle = document.getElementById('clipboard-tab-toggle') as HTMLInputElement;
+      const grammarToggle = document.getElementById('grammar-tab-toggle') as HTMLInputElement;
+      
+      if (clipboardToggle) {
+        clipboardToggle.checked = preferences.clipboardTab;
+        this.toggleTabVisibility('clipboard', preferences.clipboardTab);
+      }
+      
+      if (grammarToggle) {
+        grammarToggle.checked = preferences.grammarTab;
+        this.toggleTabVisibility('grammar', preferences.grammarTab);
+      }
+      
+      // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
+      setTimeout(() => {
+        this.ensureActiveTab();
+      }, 100);
+    } catch (error) {
+      console.error('Failed to load tab preferences:', error);
+    }
+  }
+
+  private ensureActiveTab() {
+    const activeTab = document.querySelector('.tab-btn.active:not([style*="display: none"])');
+    if (!activeTab) {
+      // Find the first visible tab and make it active
+      const firstVisibleTab = document.querySelector('.tab-btn:not([style*="display: none"])') as HTMLElement;
+      if (firstVisibleTab) {
+        firstVisibleTab.click();
+      }
+    } else {
+      // Ensure the active tab's content is actually visible
+      const tabName = activeTab.getAttribute('data-tab');
+      if (tabName) {
+        const tabContent = document.getElementById(`${tabName}-tab`);
+        if (tabContent && !tabContent.classList.contains('active')) {
+          (activeTab as HTMLElement).click();
+        }
+      }
+    }
+  }
+
+  private canDisableTab(tabName: string): boolean {
+    const clipboardToggle = document.getElementById('clipboard-tab-toggle') as HTMLInputElement;
+    const grammarToggle = document.getElementById('grammar-tab-toggle') as HTMLInputElement;
+    
+    if (!clipboardToggle || !grammarToggle) return false;
+    
+    // Count how many tabs would remain enabled after disabling this one
+    const remainingTabs = [];
+    if (tabName !== 'clipboard' && clipboardToggle.checked) remainingTabs.push('clipboard');
+    if (tabName !== 'grammar' && grammarToggle.checked) remainingTabs.push('grammar');
+    
+    // Allow disabling only if at least one tab would remain
+    return remainingTabs.length > 0;
   }
 }
 
