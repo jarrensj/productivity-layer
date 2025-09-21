@@ -647,6 +647,9 @@ class ClipboardManager {
           }
         }
       }
+      
+      // Adjust tab sizes after visibility change
+      this.adjustTabSizes();
     }
   }
 
@@ -787,6 +790,7 @@ class ClipboardManager {
       // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
       setTimeout(() => {
         this.ensureActiveTab();
+        this.adjustTabSizes();
       }, 100);
     } catch (error) {
       console.error('Failed to load tab preferences:', error);
@@ -891,6 +895,9 @@ class ClipboardManager {
         tabNavigation.appendChild(button);
       }
     });
+    
+    // Adjust tab sizes after reordering
+    setTimeout(() => this.adjustTabSizes(), 50);
   }
 
   private initializeTabOrderUI(tabOrder: string[]) {
@@ -1025,6 +1032,54 @@ class ClipboardManager {
       localStorage.setItem('tabPreferences', JSON.stringify(preferences));
     } catch (error) {
       console.error('Failed to save tab order:', error);
+    }
+  }
+
+  private adjustTabSizes() {
+    const tabNavigation = document.querySelector('.tab-navigation');
+    if (!tabNavigation) return;
+
+    const visibleTabs = Array.from(tabNavigation.querySelectorAll('.tab-btn:not([style*="display: none"])')) as HTMLElement[];
+    const tabCount = visibleTabs.length;
+    
+    // Reset all custom styles first
+    visibleTabs.forEach(tab => {
+      tab.style.fontSize = '';
+      tab.style.padding = '';
+      tab.style.minWidth = '';
+      tab.style.flex = '';
+    });
+
+    // Apply dynamic sizing based on tab count
+    if (tabCount <= 4) {
+      // 4 or fewer tabs: use default sizing
+      visibleTabs.forEach(tab => {
+        tab.style.flex = '1';
+        tab.style.fontSize = '14px';
+        tab.style.padding = '12px 16px';
+      });
+    } else if (tabCount === 5) {
+      // 5 tabs: slightly smaller
+      visibleTabs.forEach(tab => {
+        tab.style.flex = '1';
+        tab.style.fontSize = '13px';
+        tab.style.padding = '12px 14px';
+      });
+    } else if (tabCount === 6) {
+      // 6 tabs: even smaller
+      visibleTabs.forEach(tab => {
+        tab.style.flex = '1';
+        tab.style.fontSize = '12px';
+        tab.style.padding = '12px 12px';
+      });
+    } else {
+      // 7 tabs: smallest size
+      visibleTabs.forEach(tab => {
+        tab.style.flex = '1';
+        tab.style.fontSize = '11px';
+        tab.style.padding = '12px 8px';
+        tab.style.minWidth = '50px';
+      });
     }
   }
 
