@@ -70,6 +70,9 @@ interface ElectronAPI {
   images: {
     generateImage: (prompt: string, imageData: string) => Promise<{success: boolean; type?: string; result?: string; error?: string}>;
   };
+  app: {
+    clearResetApp: () => Promise<{success: boolean; error?: string}>;
+  };
 }
 
 declare global {
@@ -260,6 +263,43 @@ class ClipboardManager {
         } catch (error) {
           console.error('Failed to clear tasks:', error);
           this.showMessage('Failed to clear tasks', 'error');
+        }
+      }
+    });
+
+    // Reset App button
+    document.getElementById('clear-reset-app')?.addEventListener('click', async () => {
+      const confirmMessage = 'Are you sure you want to reset the entire app? This will:\n\n' +
+        '• Clear all clipboard items\n' +
+        '• Clear all favorite links\n' +
+        '• Clear all tasks\n' +
+        '• Clear uploaded images\n' +
+        '• Reset timer state\n' +
+        '• Reset all settings to defaults\n\n' +
+        'This action cannot be undone!';
+        
+      if (confirm(confirmMessage)) {
+        try {
+          // Call the main process to clear all data
+          await window.electronAPI.app.clearResetApp();
+          
+          // Clear localStorage completely
+          localStorage.clear();
+          
+          // Dispatch events to update all managers
+          document.dispatchEvent(new CustomEvent('clearAllClipboard'));
+          document.dispatchEvent(new CustomEvent('clearAllLinks'));
+          document.dispatchEvent(new CustomEvent('clearAllTasks'));
+          document.dispatchEvent(new CustomEvent('clearAllImages'));
+          document.dispatchEvent(new CustomEvent('resetAllSettings'));
+          
+          // Reset UI state
+          this.resetToDefaults();
+          
+          this.showMessage('App has been reset successfully', 'success');
+        } catch (error) {
+          console.error('Failed to reset app:', error);
+          this.showMessage('Failed to reset app', 'error');
         }
       }
     });
@@ -1045,6 +1085,53 @@ class ClipboardManager {
       console.error('Failed to load opacity preference:', error);
     }
   }
+
+  private resetToDefaults() {
+    // Clear all items
+    this.items = [];
+    this.renderItems();
+    
+    // Reset opacity to default
+    const defaultOpacity = 80;
+    const opacitySlider = document.getElementById('opacity-slider') as HTMLInputElement;
+    if (opacitySlider) {
+      opacitySlider.value = defaultOpacity.toString();
+      this.updateOpacityValue(defaultOpacity);
+      this.setWindowOpacity(defaultOpacity);
+    }
+    
+    // Reset all tab toggles to enabled (default state)
+    const tabToggles = [
+      'clipboard-tab-toggle',
+      'grammar-tab-toggle', 
+      'links-tab-toggle',
+      'tasks-tab-toggle',
+      'chat-tab-toggle',
+      'images-tab-toggle',
+      'timer-tab-toggle'
+    ];
+    
+    tabToggles.forEach(toggleId => {
+      const toggle = document.getElementById(toggleId) as HTMLInputElement;
+      if (toggle) {
+        toggle.checked = true;
+        const tabName = toggleId.replace('-tab-toggle', '');
+        this.toggleTabVisibility(tabName, true);
+      }
+    });
+    
+    // Reset tab order to default
+    const defaultTabOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer'];
+    this.applyTabOrder(defaultTabOrder);
+    
+    // Ensure clipboard tab is active
+    setTimeout(() => {
+      const clipboardTab = document.querySelector('[data-tab="clipboard"]') as HTMLElement;
+      if (clipboardTab) {
+        clipboardTab.click();
+      }
+    }, 100);
+  }
 }
 
 // Tab Management Class
@@ -1712,7 +1799,14 @@ class ImagesManager {
 
   private init() {
     this.setupEventListeners();
+    this.setupGlobalEventListeners();
     this.loadSavedImage();
+  }
+
+  private setupGlobalEventListeners() {
+    document.addEventListener('clearAllImages', () => {
+      this.clearImage();
+    });
   }
 
   private setupEventListeners() {
@@ -2048,9 +2142,16 @@ class TimerManager {
   
   private init() {
     this.setupEventListeners();
+    this.setupGlobalEventListeners();
     this.loadTimerState();
     this.updateDisplay();
     this.updateButtonStates();
+  }
+
+  private setupGlobalEventListeners() {
+    document.addEventListener('resetAllSettings', () => {
+      this.reset();
+    });
   }
   
   private setupEventListeners() {
