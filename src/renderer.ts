@@ -1126,6 +1126,11 @@ class ClipboardManager {
     const defaultTabOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer'];
     this.applyTabOrder(defaultTabOrder);
     
+    const settingsPage = document.getElementById('settings-page');
+    if (settingsPage && settingsPage.style.display !== 'none') {
+      this.initializeTabOrderUI(defaultTabOrder);
+    }
+    
     // Ensure clipboard tab is active
     setTimeout(() => {
       const clipboardTab = document.querySelector('[data-tab="clipboard"]') as HTMLElement;
