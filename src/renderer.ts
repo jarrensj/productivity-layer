@@ -651,7 +651,7 @@ class ClipboardManager {
       setTimeout(() => {
         const stored = localStorage.getItem('tabPreferences');
         const preferences = stored ? JSON.parse(stored) : {};
-        const tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
+        const tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer'];
         this.initializeTabOrderUI(tabOrder);
       }, 100);
     }
@@ -761,8 +761,10 @@ class ClipboardManager {
         
         // Add 'timer' to tabOrder if missing
         if (!preferences.tabOrder || !preferences.tabOrder.includes('timer')) {
-          preferences.tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
-          preferences.tabOrder.push('timer');
+          preferences.tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer'];
+          if (!preferences.tabOrder.includes('timer')) {
+            preferences.tabOrder.push('timer');
+          }
           needsUpdate = true;
         }
         
@@ -964,17 +966,17 @@ class ClipboardManager {
           </div>
         `;
 
-        // Find the Images Tab toggle (last toggle) to insert after it
+        // Find the Timer Tab toggle (last toggle) to insert after it
         const settingItems = Array.from(interfaceSection.querySelectorAll('.setting-item'));
-        const imagesTabToggle = settingItems.find(item => {
+        const timerTabToggle = settingItems.find(item => {
           const strong = item.querySelector('strong');
-          return strong && strong.textContent?.trim() === 'Images Tab';
+          return strong && strong.textContent?.trim() === 'Timer Tab';
         });
         
-        if (imagesTabToggle) {
-          imagesTabToggle.insertAdjacentHTML('afterend', tabOrderHTML);
+        if (timerTabToggle) {
+          timerTabToggle.insertAdjacentHTML('afterend', tabOrderHTML);
           tabOrderContainer = document.getElementById('tab-order-container');
-          console.log('Tab order container created after Images Tab toggle');
+          console.log('Tab order container created after Timer Tab toggle');
         } else {
           // Fallback: insert at the end of the interface section
           interfaceSection.insertAdjacentHTML('beforeend', tabOrderHTML);
