@@ -1858,6 +1858,160 @@ input:checked + .slider:before {
   font-style: italic;
 }
 
+/* Main Controls Section */
+.main-controls-section {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.control-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.control-buttons .btn {
+  flex: 1;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control-buttons .btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.control-buttons .btn:active {
+  transform: translateY(0);
+}
+
+/* Recording button color states */
+.btn.btn-primary {
+  background: #4A90E2;
+  color: white;
+}
+
+.btn.btn-primary:hover {
+  background: #357ABD;
+}
+
+.btn.btn-primary.recording {
+  background: #FF3B30;
+  color: white;
+}
+
+.btn.btn-primary.recording:hover {
+  background: #E6342A;
+}
+
+.btn.btn-success.recording {
+  background: #FF3B30;
+  color: white;
+}
+
+.btn.btn-success.recording:hover {
+  background: #E6342A;
+}
+
+.interval-setting {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.interval-setting label {
+  font-weight: 500;
+  color: #333;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.interval-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.interval-input {
+  width: 50px;
+  padding: 4px 6px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.8);
+  outline: none;
+}
+
+.interval-input:focus {
+  border-color: #4A90E2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.interval-label {
+  font-size: 11px;
+  color: #666;
+  font-weight: 500;
+  min-width: 25px;
+}
+
+.interval-description {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Summary section with proper spacing */
+.overlay-summary-section {
+  margin-top: 0px;
+  padding-top: 0px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  min-height: 200px;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.overlay-summary-section h4 {
+  margin: 0 0 12px 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.overlay-summary {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 6px;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  min-height: 120px;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 /* Responsive design for tabs */
 @media (max-width: 480px) {
   .tab-btn {

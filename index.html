@@ -148,16 +148,30 @@
       <div id="summarize-tab" class="tab-content">
         <div class="summarize-content">
           <div class="summarize-info">
-            <!-- <p>Capture a screenshot and get an AI-powered summary of its contents, or start an overlay that takes screenshots every 5 minutes.</p> -->
-            <p>Start an overlay that will summarize the contents within the overlay window</p>
+            <p>Start an overlay window and configure screen recording settings for AI-powered summaries.</p>
           </div>
-          <div class="input-section">
-            <button id="start-overlay" class="btn btn-success">Start Overlay</button>
+          
+          <!-- Main Controls Section -->
+          <div class="main-controls-section">
+            <div class="control-buttons">
+              <button id="start-overlay" class="btn btn-primary">Start Overlay</button>
+              <button id="start-recording" class="btn btn-success">Start Recording</button>
+            </div>
+            
+            <div class="interval-setting">
+              <label for="interval-minutes">Screenshot Interval:</label>
+              <div class="interval-controls">
+                <input type="number" id="interval-minutes" min="0" max="10" value="5" class="interval-input">
+                <span class="interval-label">min</span>
+                <input type="number" id="interval-seconds" min="0" max="59" value="0" class="interval-input">
+                <span class="interval-label">sec</span>
+              </div>
+            </div>
           </div>
           
           <div class="overlay-summary-section">
-            <h4>Latest Overlay Summary:</h4>
-            <div id="overlay-summary" class="overlay-summary">No overlay summaries yet. Start the overlay to begin monitoring.</div>
+            <h4>Latest Summary:</h4>
+            <div id="overlay-summary" class="overlay-summary">No summaries yet. Start the overlay and recording to begin monitoring.</div>
           </div>
         </div>
       </div>

@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   overlay: {
     create: () => ipcRenderer.invoke('overlay:create'),
     close: () => ipcRenderer.invoke('overlay:close'),
+    startRecording: (interval: number) => ipcRenderer.invoke('overlay:start-recording', interval),
     stopInterval: () => ipcRenderer.invoke('overlay:stop-interval'),
     closeWindow: () => ipcRenderer.invoke('overlay:close-window'),
     onNewScreenshot: (callback: (dataUrl: string) => void) => ipcRenderer.on('new-screenshot', (event, dataUrl) => callback(dataUrl)),

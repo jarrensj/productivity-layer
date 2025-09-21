@@ -201,13 +201,10 @@ const createOverlayWindow = () => {
     overlayWindow = null;
     stopScreenshotInterval();
   });
-
-  // Start the screenshot interval
-  startScreenshotInterval();
 };
 
 // Start screenshot interval
-const startScreenshotInterval = () => {
+const startScreenshotInterval = (intervalSeconds = 300) => {
   if (screenshotInterval) {
     clearInterval(screenshotInterval);
   }
@@ -215,13 +212,13 @@ const startScreenshotInterval = () => {
   // Take initial screenshot
   takeScreenshotForOverlay();
   
-  // Set interval for every 5 minutes (300000 ms)
+  // Set interval based on provided seconds
+  const intervalMs = intervalSeconds * 1000;
   screenshotInterval = setInterval(() => {
     takeScreenshotForOverlay();
-  }, 15000);
-  // }, 300000);
+  }, intervalMs);
   
-  console.log('Screenshot interval started - taking screenshots every 5 minutes');
+  console.log(`Screenshot interval started - taking screenshots every ${intervalSeconds} seconds (${Math.floor(intervalSeconds / 60)} minutes)`);
 };
 
 // Stop screenshot interval
@@ -1006,8 +1003,13 @@ ipcMain.handle('overlay:close-window', () => {
   return { success: true };
 });
 
+ipcMain.handle('overlay:start-recording', (event, interval) => {
+  startScreenshotInterval(interval);
+  return { success: true };
+});
+
 // Handle cropped screenshot from crop window
-ipcMain.on('cropped-screenshot', (event, croppedDataUrl: string) => {
+ipcMain.on('cropped-screenshot', () => {
   // This will be handled by the takeScreenshotForOverlay function
   // The event is already set up there with ipcMain.on
 });

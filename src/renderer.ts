@@ -80,6 +80,7 @@ interface ElectronAPI {
   overlay: {
     create: () => Promise<{success: boolean}>;
     close: () => Promise<void>;
+    startRecording: (interval: number) => Promise<{success: boolean}>;
     stopInterval: () => Promise<{success: boolean}>;
     closeWindow: () => Promise<{success: boolean}>;
     onNewScreenshot: (callback: (dataUrl: string) => void) => void;
@@ -756,7 +757,7 @@ class ClipboardManager {
   private loadTabPreferences() {
     try {
       const stored = localStorage.getItem('tabPreferences');
-      let preferences = stored ? JSON.parse(stored) : { 
+      const preferences = stored ? JSON.parse(stored) : { 
         clipboardTab: true, 
         grammarTab: true, 
         linksTab: true, 
@@ -2176,12 +2177,20 @@ class ImagesManager {
 // Summarize Manager Class
 class SummarizeManager {
   private overlayButton: HTMLElement;
+  private recordingButton: HTMLElement;
+  private intervalMinutesInput: HTMLInputElement;
+  private intervalSecondsInput: HTMLInputElement;
   private overlaySummaryContainer: HTMLElement;
   private resultsContainer: HTMLElement;
-  private isOverlayActive: boolean = false;
+  private isOverlayActive = false;
+  private isRecordingActive = false;
+  private currentInterval = 300; // Default 5 minutes in seconds
 
   constructor() {
     this.overlayButton = document.getElementById('start-overlay')!;
+    this.recordingButton = document.getElementById('start-recording')!;
+    this.intervalMinutesInput = document.getElementById('interval-minutes') as HTMLInputElement;
+    this.intervalSecondsInput = document.getElementById('interval-seconds') as HTMLInputElement;
     this.overlaySummaryContainer = document.getElementById('overlay-summary')!;
     this.resultsContainer = document.getElementById('overlay-summary')!; // Use same container
     
@@ -2194,9 +2203,31 @@ class SummarizeManager {
   }
 
   private setupEventListeners() {
+    // Overlay button
     this.overlayButton.addEventListener('click', () => {
       this.toggleOverlay();
     });
+
+    // Recording button
+    this.recordingButton.addEventListener('click', () => {
+      if (this.isRecordingActive) {
+        this.stopRecording();
+      } else {
+        this.startRecording();
+      }
+    });
+
+    // Interval inputs
+    this.intervalMinutesInput.addEventListener('input', () => {
+      this.updateCurrentInterval();
+    });
+
+    this.intervalSecondsInput.addEventListener('input', () => {
+      this.updateCurrentInterval();
+    });
+
+    // Load saved interval preference
+    this.loadIntervalPreference();
   }
 
   private setupOverlayStateListener() {
@@ -2241,11 +2272,20 @@ class SummarizeManager {
   private async toggleOverlay() {
     try {
       if (this.isOverlayActive) {
-        // Stop overlay
+        // Stop overlay and recording
         this.overlayButton.textContent = 'Stopping...';
         this.overlayButton.setAttribute('disabled', 'true');
 
-        await window.electronAPI.overlay.stopInterval();
+        // Stop recording if it's active
+        if (this.isRecordingActive) {
+          await window.electronAPI.overlay.stopInterval();
+          this.isRecordingActive = false;
+          this.recordingButton.textContent = 'Start Recording';
+          this.recordingButton.classList.remove('recording');
+          this.intervalMinutesInput.removeAttribute('disabled');
+          this.intervalSecondsInput.removeAttribute('disabled');
+        }
+
         await window.electronAPI.overlay.closeWindow();
         
         this.isOverlayActive = false;
@@ -2253,7 +2293,7 @@ class SummarizeManager {
         this.overlayButton.classList.remove('active');
         this.overlayButton.removeAttribute('disabled');
         this.updateOverlaySummary('No overlay summaries yet. Start the overlay to begin monitoring.');
-        this.showMessage('Overlay stopped successfully', 'success');
+        this.showMessage('Overlay and recording stopped successfully', 'success');
       } else {
         // Start overlay
         this.overlayButton.textContent = 'Starting...';
@@ -2266,8 +2306,8 @@ class SummarizeManager {
           this.overlayButton.textContent = 'Stop Overlay';
           this.overlayButton.classList.add('active');
           this.overlayButton.removeAttribute('disabled');
-          this.updateOverlaySummary('Waiting for first overlay summary...');
-          this.showMessage('Overlay started! Screenshots will be taken every 5 minutes.', 'success');
+          this.updateOverlaySummary('Overlay window opened. Start recording to begin monitoring.');
+          this.showMessage('Overlay started! You can now start screen recording.', 'success');
         } else {
           this.showMessage('Failed to start overlay', 'error');
           this.overlayButton.textContent = 'Start Overlay';
@@ -2281,6 +2321,121 @@ class SummarizeManager {
       this.overlayButton.textContent = 'Start Overlay';
       this.overlayButton.classList.remove('active');
       this.overlayButton.removeAttribute('disabled');
+    }
+  }
+
+  private async startRecording() {
+    try {
+      if (!this.isOverlayActive) {
+        this.showMessage('Please start the overlay window first', 'warning');
+        return;
+      }
+
+      this.recordingButton.textContent = 'Starting...';
+      this.recordingButton.setAttribute('disabled', 'true');
+
+      const result = await window.electronAPI.overlay.startRecording(this.currentInterval);
+      
+      if (result.success) {
+        this.isRecordingActive = true;
+        this.recordingButton.textContent = 'Stop Recording';
+        this.recordingButton.classList.add('recording');
+        this.recordingButton.removeAttribute('disabled');
+        this.intervalMinutesInput.setAttribute('disabled', 'true');
+        this.intervalSecondsInput.setAttribute('disabled', 'true');
+        this.updateOverlaySummary('Recording started. Waiting for first summary...');
+        this.showMessage(`Screen recording started! Screenshots will be taken every ${this.formatInterval(this.currentInterval)}.`, 'success');
+      } else {
+        this.showMessage('Failed to start recording', 'error');
+        this.recordingButton.textContent = 'Start Recording';
+        this.recordingButton.removeAttribute('disabled');
+      }
+    } catch (error) {
+      console.error('Recording start error:', error);
+      this.showMessage('Failed to start recording', 'error');
+      this.recordingButton.textContent = 'Start Recording';
+      this.recordingButton.removeAttribute('disabled');
+    }
+  }
+
+  private async stopRecording() {
+    try {
+      this.recordingButton.textContent = 'Stopping...';
+      this.recordingButton.setAttribute('disabled', 'true');
+
+      await window.electronAPI.overlay.stopInterval();
+      
+      this.isRecordingActive = false;
+      this.recordingButton.textContent = 'Start Recording';
+      this.recordingButton.classList.remove('recording');
+      this.recordingButton.removeAttribute('disabled');
+      this.intervalMinutesInput.removeAttribute('disabled');
+      this.intervalSecondsInput.removeAttribute('disabled');
+      this.updateOverlaySummary('Recording stopped. Start recording to resume monitoring.');
+      this.showMessage('Screen recording stopped', 'success');
+    } catch (error) {
+      console.error('Recording stop error:', error);
+      this.showMessage('Failed to stop recording', 'error');
+      this.recordingButton.textContent = 'Stop Recording';
+      this.recordingButton.removeAttribute('disabled');
+    }
+  }
+
+  private updateCurrentInterval() {
+    const minutes = parseInt(this.intervalMinutesInput.value) || 0;
+    const seconds = parseInt(this.intervalSecondsInput.value) || 0;
+    this.currentInterval = minutes * 60 + seconds;
+    
+    // Ensure minimum of 30 seconds
+    if (this.currentInterval < 30) {
+      this.currentInterval = 30;
+      this.intervalMinutesInput.value = '0';
+      this.intervalSecondsInput.value = '30';
+    }
+    
+    this.saveIntervalPreference();
+  }
+
+  private formatInterval(seconds: number): string {
+    if (seconds < 60) {
+      return `${seconds} seconds`;
+    } else if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    } else {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      if (minutes === 0) {
+        return `${hours} hour${hours !== 1 ? 's' : ''}`;
+      } else {
+        return `${hours}h ${minutes}m`;
+      }
+    }
+  }
+
+  private loadIntervalPreference() {
+    try {
+      const stored = localStorage.getItem('screenshotInterval');
+      if (stored) {
+        const interval = parseInt(stored);
+        if (interval >= 30 && interval <= 600) {
+          this.currentInterval = interval;
+          const minutes = Math.floor(interval / 60);
+          const seconds = interval % 60;
+          this.intervalMinutesInput.value = minutes.toString();
+          this.intervalSecondsInput.value = seconds.toString();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load interval preference:', error);
+    }
+  }
+
+  private saveIntervalPreference() {
+    try {
+      localStorage.setItem('screenshotInterval', this.currentInterval.toString());
+    } catch (error) {
+      console.error('Failed to save interval preference:', error);
     }
   }
 
