@@ -44,4 +44,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   images: {
     generateImage: (prompt: string, imageData: string) => ipcRenderer.invoke('images:generate', prompt, imageData),
   },
+  screenshot: {
+    capture: () => ipcRenderer.invoke('screenshot:capture'),
+    summarize: (imageData: string) => ipcRenderer.invoke('screenshot:summarize', imageData),
+  },
+  overlay: {
+    create: () => ipcRenderer.invoke('overlay:create'),
+    close: () => ipcRenderer.invoke('overlay:close'),
+    stopInterval: () => ipcRenderer.invoke('overlay:stop-interval'),
+    closeWindow: () => ipcRenderer.invoke('overlay:close-window'),
+    onNewScreenshot: (callback: (dataUrl: string) => void) => ipcRenderer.on('new-screenshot', (event, dataUrl) => callback(dataUrl)),
+    onNewSummary: (callback: (summary: string) => void) => ipcRenderer.on('new-summary', (event, summary) => callback(summary)),
+    onOverlaySummary: (callback: (summary: string) => void) => ipcRenderer.on('overlay-summary', (event, summary) => callback(summary)),
+  },
 });

@@ -70,6 +70,19 @@ interface ElectronAPI {
   images: {
     generateImage: (prompt: string, imageData: string) => Promise<{success: boolean; type?: string; result?: string; error?: string}>;
   };
+  screenshot: {
+    capture: () => Promise<{success: boolean; dataUrl?: string; error?: string}>;
+    summarize: (imageData: string) => Promise<{success: boolean; result?: string; error?: string}>;
+  };
+  overlay: {
+    create: () => Promise<{success: boolean}>;
+    close: () => Promise<void>;
+    stopInterval: () => Promise<{success: boolean}>;
+    closeWindow: () => Promise<{success: boolean}>;
+    onNewScreenshot: (callback: (dataUrl: string) => void) => void;
+    onNewSummary: (callback: (summary: string) => void) => void;
+    onOverlaySummary: (callback: (summary: string) => void) => void;
+  };
 }
 
 declare global {
@@ -361,6 +374,22 @@ class ClipboardManager {
       setTimeout(() => this.ensureActiveTab(), 50);
     });
 
+    document.getElementById('summarize-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('summarize')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('summarize', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
+    });
+
     // Opacity slider control
     document.getElementById('opacity-slider')?.addEventListener('input', (e) => {
       const slider = e.target as HTMLInputElement;
@@ -641,11 +670,12 @@ class ClipboardManager {
     const tasksEnabled = (document.getElementById('tasks-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const chatEnabled = (document.getElementById('chat-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const imagesEnabled = (document.getElementById('images-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    const summarizeEnabled = (document.getElementById('summarize-tab-toggle') as HTMLInputElement)?.checked ?? true;
     
     // Get current tab order from localStorage or use default
     const stored = localStorage.getItem('tabPreferences');
     const currentPreferences = stored ? JSON.parse(stored) : {};
-    const defaultOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
+    const defaultOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize'];
     
     const preferences = {
       clipboardTab: clipboardEnabled,
@@ -654,6 +684,7 @@ class ClipboardManager {
       tasksTab: tasksEnabled,
       chatTab: chatEnabled,
       imagesTab: imagesEnabled,
+      summarizeTab: summarizeEnabled,
       tabOrder: currentPreferences.tabOrder || defaultOrder
     };
     
@@ -674,7 +705,8 @@ class ClipboardManager {
         tasksTab: true, 
         chatTab: true,
         imagesTab: true,
-        tabOrder: ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images']
+        summarizeTab: true,
+        tabOrder: ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize']
       };
 
       // Migration: Add Images tab if it doesn't exist in stored preferences
@@ -694,24 +726,39 @@ class ClipboardManager {
           needsUpdate = true;
         }
         
+        // Add summarizeTab if missing
+        if (preferences.summarizeTab === undefined) {
+          preferences.summarizeTab = true;
+          needsUpdate = true;
+        }
+        
+        // Add 'summarize' to tabOrder if missing
+        if (!preferences.tabOrder || !preferences.tabOrder.includes('summarize')) {
+          preferences.tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
+          preferences.tabOrder.push('summarize');
+          needsUpdate = true;
+        }
+        
         // Save updated preferences
         if (needsUpdate) {
           localStorage.setItem('tabPreferences', JSON.stringify(preferences));
         }
       }
       
-      // Apply tab order first
-      if (preferences.tabOrder) {
-        this.applyTabOrder(preferences.tabOrder);
-      }
-      
-      // Update toggle states
+      // Apply tab order first (with a small delay to ensure DOM is ready)
+      setTimeout(() => {
+        if (preferences.tabOrder) {
+          this.applyTabOrder(preferences.tabOrder);
+        }
+        
+        // Update toggle states
       const clipboardToggle = document.getElementById('clipboard-tab-toggle') as HTMLInputElement;
       const grammarToggle = document.getElementById('grammar-tab-toggle') as HTMLInputElement;
       const linksToggle = document.getElementById('links-tab-toggle') as HTMLInputElement;
       const tasksToggle = document.getElementById('tasks-tab-toggle') as HTMLInputElement;
       const chatToggle = document.getElementById('chat-tab-toggle') as HTMLInputElement;
       const imagesToggle = document.getElementById('images-tab-toggle') as HTMLInputElement;
+      const summarizeToggle = document.getElementById('summarize-tab-toggle') as HTMLInputElement;
       
       if (clipboardToggle) {
         clipboardToggle.checked = preferences.clipboardTab;
@@ -743,13 +790,20 @@ class ClipboardManager {
         this.toggleTabVisibility('images', preferences.imagesTab ?? true);
       }
       
-      // Initialize tab order UI in settings
-      this.initializeTabOrderUI(preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images']);
+      if (summarizeToggle) {
+        summarizeToggle.checked = preferences.summarizeTab ?? true;
+        // Always show the summarize tab by default
+        this.toggleTabVisibility('summarize', true);
+      }
       
-      // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
-      setTimeout(() => {
-        this.ensureActiveTab();
-      }, 100);
+        // Initialize tab order UI in settings
+        this.initializeTabOrderUI(preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize']);
+        
+        // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
+        setTimeout(() => {
+          this.ensureActiveTab();
+        }, 100);
+      }, 50);
     } catch (error) {
       console.error('Failed to load tab preferences:', error);
     }
@@ -782,8 +836,9 @@ class ClipboardManager {
     const tasksToggle = document.getElementById('tasks-tab-toggle') as HTMLInputElement;
     const chatToggle = document.getElementById('chat-tab-toggle') as HTMLInputElement;
     const imagesToggle = document.getElementById('images-tab-toggle') as HTMLInputElement;
+    const summarizeToggle = document.getElementById('summarize-tab-toggle') as HTMLInputElement;
     
-    if (!clipboardToggle || !grammarToggle || !linksToggle || !tasksToggle || !chatToggle || !imagesToggle) return false;
+    if (!clipboardToggle || !grammarToggle || !linksToggle || !tasksToggle || !chatToggle || !imagesToggle || !summarizeToggle) return false;
     
     // Count how many tabs would remain enabled after disabling this one
     const remainingTabs = [];
@@ -793,6 +848,7 @@ class ClipboardManager {
     if (tabName !== 'tasks' && tasksToggle.checked) remainingTabs.push('tasks');
     if (tabName !== 'chat' && chatToggle.checked) remainingTabs.push('chat');
     if (tabName !== 'images' && imagesToggle.checked) remainingTabs.push('images');
+    if (tabName !== 'summarize' && summarizeToggle.checked) remainingTabs.push('summarize');
     
     // Allow disabling only if at least one tab would remain
     return remainingTabs.length > 0;
@@ -928,7 +984,8 @@ class ClipboardManager {
       links: 'Favorite Links',
       tasks: 'Tasks',
       chat: 'Chat',
-      images: 'Images'
+      images: 'Images',
+      summarize: 'Summarize'
     };
 
     const tabOrderHTML = tabOrder.map(tabName => `
@@ -1976,6 +2033,122 @@ class ImagesManager {
   }
 }
 
+// Summarize Manager Class
+class SummarizeManager {
+  private overlayButton: HTMLElement;
+  private overlaySummaryContainer: HTMLElement;
+  private resultsContainer: HTMLElement;
+  private isOverlayActive: boolean = false;
+
+  constructor() {
+    this.overlayButton = document.getElementById('start-overlay')!;
+    this.overlaySummaryContainer = document.getElementById('overlay-summary')!;
+    this.resultsContainer = document.getElementById('overlay-summary')!; // Use same container
+    
+    this.init();
+  }
+
+  private init() {
+    this.setupEventListeners();
+    this.setupOverlayStateListener();
+  }
+
+  private setupEventListeners() {
+    this.overlayButton.addEventListener('click', () => {
+      this.toggleOverlay();
+    });
+  }
+
+  private setupOverlayStateListener() {
+    // Listen for when the overlay window is closed externally
+    // This helps keep the button state in sync
+    if (window.electronAPI) {
+      // Listen for overlay summaries from the main process
+      window.electronAPI.overlay.onOverlaySummary((summary) => {
+        this.updateOverlaySummary(summary);
+      });
+      
+      // We'll use a simple approach - check overlay state periodically
+      // In a more sophisticated implementation, you'd use IPC events
+      setInterval(() => {
+        this.checkOverlayState();
+      }, 2000); // Check every 2 seconds
+    }
+  }
+
+  private async checkOverlayState() {
+    // This is a simple way to check if overlay is still active
+    // In a production app, you'd want proper IPC communication
+    // For now, we'll assume the overlay is still active if the button shows "Stop Overlay"
+    if (this.overlayButton.textContent === 'Stop Overlay' && !this.isOverlayActive) {
+      this.isOverlayActive = true;
+    } else if (this.overlayButton.textContent === 'Start Overlay' && this.isOverlayActive) {
+      this.isOverlayActive = false;
+    }
+  }
+
+  private updateOverlaySummary(summary: string) {
+    if (this.overlaySummaryContainer) {
+      this.overlaySummaryContainer.textContent = summary;
+      this.overlaySummaryContainer.className = 'overlay-summary success';
+      
+      // Show a brief success message
+      this.showMessage('New overlay summary received!', 'success');
+    }
+  }
+
+
+  private async toggleOverlay() {
+    try {
+      if (this.isOverlayActive) {
+        // Stop overlay
+        this.overlayButton.textContent = 'Stopping...';
+        this.overlayButton.setAttribute('disabled', 'true');
+
+        await window.electronAPI.overlay.stopInterval();
+        await window.electronAPI.overlay.closeWindow();
+        
+        this.isOverlayActive = false;
+        this.overlayButton.textContent = 'Start Overlay';
+        this.overlayButton.classList.remove('active');
+        this.overlayButton.removeAttribute('disabled');
+        this.updateOverlaySummary('No overlay summaries yet. Start the overlay to begin monitoring.');
+        this.showMessage('Overlay stopped successfully', 'success');
+      } else {
+        // Start overlay
+        this.overlayButton.textContent = 'Starting...';
+        this.overlayButton.setAttribute('disabled', 'true');
+
+        const result = await window.electronAPI.overlay.create();
+        
+        if (result.success) {
+          this.isOverlayActive = true;
+          this.overlayButton.textContent = 'Stop Overlay';
+          this.overlayButton.classList.add('active');
+          this.overlayButton.removeAttribute('disabled');
+          this.updateOverlaySummary('Waiting for first overlay summary...');
+          this.showMessage('Overlay started! Screenshots will be taken every 5 minutes.', 'success');
+        } else {
+          this.showMessage('Failed to start overlay', 'error');
+          this.overlayButton.textContent = 'Start Overlay';
+          this.overlayButton.removeAttribute('disabled');
+        }
+      }
+    } catch (error) {
+      console.error('Overlay toggle error:', error);
+      this.showMessage('Failed to toggle overlay', 'error');
+      this.isOverlayActive = false;
+      this.overlayButton.textContent = 'Start Overlay';
+      this.overlayButton.classList.remove('active');
+      this.overlayButton.removeAttribute('disabled');
+    }
+  }
+
+  private showMessage(message: string, type: 'success' | 'warning' | 'error') {
+    Utils.showMessage(message, type);
+  }
+}
+
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize tab manager
@@ -1986,6 +2159,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize images manager
   new ImagesManager();
+  
+  // Initialize summarize manager
+  new SummarizeManager();
   
   // Wait for electronAPI to be available for clipboard functionality
   if (window.electronAPI) {

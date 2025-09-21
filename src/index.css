@@ -61,19 +61,26 @@ body {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   background: rgba(255, 255, 255, 0.05);
   -webkit-app-region: no-drag;
+  width: 100%;
 }
 
 .tab-btn {
   background: none;
   border: none;
-  padding: 12px 20px;
+  padding: 10px 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 11px;
   color: #666;
   border-bottom: 2px solid transparent;
   transition: all 0.2s ease;
   flex: 1;
   font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tab-btn:hover {
@@ -775,6 +782,24 @@ body {
   background: rgba(255, 59, 48, 0.2);
 }
 
+.btn-success {
+  background: #34C759;
+  color: white;
+}
+
+.btn-success:hover {
+  background: #28A745;
+}
+
+.btn-success.active {
+  background: #DC3545;
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
+}
+
+.btn-success.active:hover {
+  background: #C82333;
+}
+
 .btn-small {
   padding: 4px 8px;
   font-size: 11px;
@@ -1448,12 +1473,18 @@ input:checked + .slider:before {
   border-color: rgba(33, 150, 243, 0.7);
 }
 
+.tab-order-item[data-tab="summarize"] {
+  background: rgba(33, 150, 243, 0.4);
+  border-color: rgba(33, 150, 243, 0.7);
+}
+
 .tab-order-item[data-tab="clipboard"]:hover,
 .tab-order-item[data-tab="grammar"]:hover,
 .tab-order-item[data-tab="links"]:hover,
 .tab-order-item[data-tab="tasks"]:hover,
 .tab-order-item[data-tab="chat"]:hover,
-.tab-order-item[data-tab="images"]:hover {
+.tab-order-item[data-tab="images"]:hover,
+.tab-order-item[data-tab="summarize"]:hover {
   background: rgba(33, 150, 243, 0.5);
   border-color: rgba(33, 150, 243, 0.9);
 }
@@ -1518,4 +1549,148 @@ input:checked + .slider:before {
   height: 2px;
   background: #007acc;
   border-radius: 1px;
+}
+
+/* Summarize Tab Styles */
+.summarize-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  -webkit-app-region: no-drag;
+}
+
+
+.summarize-info {
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.screenshot-container {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.screenshot-container img {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  object-fit: contain;
+}
+
+.screenshot-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* Overlay Summary Section */
+.overlay-summary-section {
+  margin: 16px 0;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.overlay-summary-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.overlay-summary {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  padding: 12px;
+  min-height: 150px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #333;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.overlay-summary.loading {
+  background: rgba(74, 144, 226, 0.1);
+  border-color: rgba(74, 144, 226, 0.3);
+  color: #4A90E2;
+}
+
+.overlay-summary.error {
+  background: rgba(255, 59, 48, 0.1);
+  border-color: rgba(255, 59, 48, 0.3);
+  color: #FF3B30;
+}
+
+.overlay-summary.success {
+  background: rgba(52, 199, 89, 0.1);
+  border-color: rgba(52, 199, 89, 0.3);
+  color: #34C759;
+}
+
+.summarize-results {
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  min-height: 100px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.summarize-results.loading {
+  color: #666;
+  font-style: italic;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.summarize-results.success {
+  color: #333;
+}
+
+.summarize-results.error {
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
+  border-color: rgba(220, 53, 69, 0.2);
+}
+
+.summarize-results.default {
+  color: #999;
+  text-align: center;
+  font-style: italic;
+}
+
+/* Responsive design for tabs */
+@media (max-width: 480px) {
+  .tab-btn {
+    font-size: 10px;
+    padding: 8px 4px;
+  }
+}
+
+/* Handle many tabs */
+@media (max-width: 400px) {
+  .tab-btn {
+    font-size: 9px;
+    padding: 6px 2px;
+  }
 }

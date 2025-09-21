@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, clipboard, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, screen, clipboard, ipcMain, shell, desktopCapturer } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { randomUUID } from 'crypto';
@@ -98,6 +98,8 @@ let savedClipboardItems: ClipboardItem[] = [];
 let savedLinkItems: LinkItem[] = [];
 let savedTaskItems: TaskItem[] = [];
 let chatWindow: BrowserWindow | null = null;
+let overlayWindow: BrowserWindow | null = null;
+let screenshotInterval: NodeJS.Timeout | null = null;
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -149,6 +151,361 @@ const createChatWindow = (initialMessage?: string) => {
   chatWindow.on('closed', () => {
     chatWindow = null;
   });
+};
+
+// Create overlay window function
+const createOverlayWindow = () => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.focus();
+    return;
+  }
+
+  overlayWindow = new BrowserWindow({
+    width: 600,
+    height: 400,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: true,
+    movable: true,
+    skipTaskbar: true,
+    opacity: 0.9,
+    minWidth: 200,
+    minHeight: 150,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  // Load the overlay HTML
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    overlayWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}/overlay.html`);
+  } else {
+    overlayWindow.loadFile(path.join(__dirname, '../renderer/overlay.html'));
+  }
+
+  // Position the overlay window in the center
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const overlayWidth = 600;
+  const overlayHeight = 400;
+  overlayWindow.setPosition(
+    Math.floor((screenWidth - overlayWidth) / 2),
+    Math.floor((screenHeight - overlayHeight) / 2)
+  );
+
+  // Handle window closed
+  overlayWindow.on('closed', () => {
+    overlayWindow = null;
+    stopScreenshotInterval();
+  });
+
+  // Start the screenshot interval
+  startScreenshotInterval();
+};
+
+// Start screenshot interval
+const startScreenshotInterval = () => {
+  if (screenshotInterval) {
+    clearInterval(screenshotInterval);
+  }
+  
+  // Take initial screenshot
+  takeScreenshotForOverlay();
+  
+  // Set interval for every 5 minutes (300000 ms)
+  screenshotInterval = setInterval(() => {
+    takeScreenshotForOverlay();
+  }, 15000);
+  // }, 300000);
+  
+  console.log('Screenshot interval started - taking screenshots every 5 minutes');
+};
+
+// Stop screenshot interval
+const stopScreenshotInterval = () => {
+  if (screenshotInterval) {
+    clearInterval(screenshotInterval);
+    screenshotInterval = null;
+    console.log('Screenshot interval stopped');
+  }
+};
+
+// Take screenshot for overlay
+const takeScreenshotForOverlay = async () => {
+  try {
+    if (!overlayWindow || overlayWindow.isDestroyed()) {
+      console.log('Overlay window not available for screenshot');
+      return;
+    }
+
+    // Get overlay window bounds
+    const bounds = overlayWindow.getBounds();
+    
+    // Temporarily hide the overlay window to capture what's behind it
+    const wasVisible = overlayWindow.isVisible();
+    if (wasVisible) {
+      overlayWindow.hide();
+      // Wait a moment for the window to hide
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    // Get all available screens
+    const allDisplays = screen.getAllDisplays();
+    console.log('All displays:', allDisplays.map(d => ({ 
+      id: d.id, 
+      bounds: d.bounds, 
+      workArea: d.workArea,
+      scaleFactor: d.scaleFactor 
+    })));
+
+    // Find which display the overlay is on
+    const overlayDisplay = allDisplays.find(display => {
+      const displayBounds = display.bounds;
+      return bounds.x >= displayBounds.x && 
+             bounds.x < displayBounds.x + displayBounds.width &&
+             bounds.y >= displayBounds.y && 
+             bounds.y < displayBounds.y + displayBounds.height;
+    });
+
+    console.log('Overlay display found:', overlayDisplay ? {
+      id: overlayDisplay.id,
+      bounds: overlayDisplay.bounds,
+      workArea: overlayDisplay.workArea,
+      scaleFactor: overlayDisplay.scaleFactor
+    } : 'Not found');
+
+    // Use desktopCapturer to get the screen, but with better source selection
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1920, height: 1080 }
+    });
+
+    if (sources.length === 0) {
+      console.log('No screen sources available for overlay screenshot');
+      // Restore overlay visibility
+      if (wasVisible) {
+        overlayWindow.show();
+      }
+      return;
+    }
+
+    console.log('Available desktop capturer sources:', sources.map((s, i) => ({
+      index: i,
+      name: s.name,
+      id: s.id,
+      thumbnailSize: s.thumbnail.getSize()
+    })));
+
+    // For now, use the first source and rely on cropping to get the right area
+    const fullScreenshot = sources[0].thumbnail;
+    console.log('Selected screenshot source size:', fullScreenshot.getSize());
+    
+    // Restore overlay visibility
+    if (wasVisible) {
+      overlayWindow.show();
+    }
+    
+    // Send full screenshot to overlay window for display
+    overlayWindow.webContents.send('new-screenshot', fullScreenshot.toDataURL());
+    
+    // For AI summarization, we need to crop the screenshot to the overlay area
+    // Create a hidden BrowserWindow to handle the cropping
+    const cropWindow = new BrowserWindow({
+      width: bounds.width,
+      height: bounds.height,
+      show: false,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+      },
+    });
+
+    // Get screen dimensions for cropping calculations
+    const targetDisplay = overlayDisplay || screen.getPrimaryDisplay();
+    const screenSize = targetDisplay.workAreaSize;
+    const displayScaleFactor = targetDisplay.scaleFactor;
+    
+    console.log('Overlay bounds:', bounds);
+    console.log('Target display bounds:', targetDisplay.bounds);
+    console.log('Target display work area:', screenSize);
+    console.log('Display scale factor:', displayScaleFactor);
+    
+    // Calculate overlay position relative to the target display
+    const relativeX = bounds.x - targetDisplay.bounds.x;
+    const relativeY = bounds.y - targetDisplay.bounds.y;
+    
+    console.log('Overlay position relative to display:', relativeX, relativeY);
+    
+    // Create HTML content for cropping
+    const cropHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { margin: 0; padding: 0; }
+          canvas { display: block; }
+        </style>
+      </head>
+      <body>
+        <canvas id="cropCanvas" width="${bounds.width}" height="${bounds.height}"></canvas>
+        <script>
+          const canvas = document.getElementById('cropCanvas');
+          const ctx = canvas.getContext('2d');
+          const img = new Image();
+          
+          img.onload = () => {
+            console.log('=== CROPPING DEBUG ===');
+            console.log('Full screenshot size:', img.width, 'x', img.height);
+            console.log('Screen work area:', ${screenSize.width}, 'x', ${screenSize.height});
+            console.log('Overlay bounds:', ${bounds.x}, ${bounds.y}, ${bounds.width}, ${bounds.height});
+            console.log('Overlay relative position:', ${relativeX}, ${relativeY});
+            console.log('Display scale factor:', ${displayScaleFactor});
+            
+            // Calculate the scale factor between the screenshot and actual screen
+            const screenScaleX = img.width / ${screenSize.width};
+            const screenScaleY = img.height / ${screenSize.height};
+            
+            console.log('Calculated scale factors:', screenScaleX, screenScaleY);
+            
+            // Calculate the source coordinates and dimensions for cropping
+            // Use relative position to the display
+            const sourceX = ${relativeX} * screenScaleX;
+            const sourceY = ${relativeY} * screenScaleY;
+            const sourceWidth = ${bounds.width} * screenScaleX;
+            const sourceHeight = ${bounds.height} * screenScaleY;
+            
+            console.log('Calculated crop area:', sourceX, sourceY, sourceWidth, sourceHeight);
+            
+            // Ensure we don't go outside the image bounds
+            const clampedSourceX = Math.max(0, Math.min(sourceX, img.width));
+            const clampedSourceY = Math.max(0, Math.min(sourceY, img.height));
+            const clampedSourceWidth = Math.min(sourceWidth, img.width - clampedSourceX);
+            const clampedSourceHeight = Math.min(sourceHeight, img.height - clampedSourceY);
+            
+            console.log('Clamped crop area:', clampedSourceX, clampedSourceY, clampedSourceWidth, clampedSourceHeight);
+            console.log('Target canvas size:', ${bounds.width}, 'x', ${bounds.height});
+            
+            // Clear the canvas first
+            ctx.clearRect(0, 0, ${bounds.width}, ${bounds.height});
+            
+            // Draw the cropped portion of the screenshot to the canvas
+            ctx.drawImage(
+              img,
+              clampedSourceX, clampedSourceY, clampedSourceWidth, clampedSourceHeight,
+              0, 0, ${bounds.width}, ${bounds.height}
+            );
+            
+            // Convert the cropped canvas to data URL and send back to main process
+            const croppedDataUrl = canvas.toDataURL('image/png');
+            console.log('Final cropped image size:', ${bounds.width}, 'x', ${bounds.height});
+            console.log('=== END CROPPING DEBUG ===');
+            require('electron').ipcRenderer.send('cropped-screenshot', croppedDataUrl);
+          };
+          
+          img.onerror = (e) => {
+            console.error('Error loading image:', e);
+            require('electron').ipcRenderer.send('cropped-screenshot', '');
+          };
+          
+          img.src = '${fullScreenshot.toDataURL()}';
+        </script>
+      </body>
+      </html>
+    `;
+
+    // Set up IPC listener for the cropped screenshot
+    const handleCroppedScreenshot = (event: any, croppedDataUrl: string) => {
+      if (!croppedDataUrl) {
+        console.error('Failed to crop screenshot');
+        cropWindow.close();
+        ipcMain.removeListener('cropped-screenshot', handleCroppedScreenshot);
+        return;
+      }
+      
+      console.log('Received cropped screenshot, generating AI summary...');
+      
+      // Generate AI summary with the cropped screenshot (content underneath overlay)
+      summarizeScreenshot(croppedDataUrl).then(summaryResult => {
+        if (summaryResult.success) {
+          console.log('AI Summary generated:', summaryResult.result);
+          overlayWindow.webContents.send('new-summary', summaryResult.result);
+          
+          // Also send the summary to the main window
+          const mainWindow = BrowserWindow.getAllWindows().find(window => 
+            window !== overlayWindow && !window.isDestroyed() && window !== cropWindow
+          );
+          if (mainWindow) {
+            mainWindow.webContents.send('overlay-summary', summaryResult.result);
+          }
+        } else {
+          console.error('AI Summary failed:', summaryResult.error);
+        }
+        
+        // Clean up
+        cropWindow.close();
+        ipcMain.removeListener('cropped-screenshot', handleCroppedScreenshot);
+        console.log('Screenshot taken for overlay at:', new Date().toISOString());
+      });
+    };
+
+    ipcMain.on('cropped-screenshot', handleCroppedScreenshot);
+    
+    // Load the HTML content
+    cropWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(cropHTML)}`);
+    
+  } catch (error) {
+    console.error('Error taking screenshot for overlay:', error);
+  }
+};
+
+// Summarize screenshot function
+const summarizeScreenshot = async (imageData: string): Promise<{success: boolean; result?: string; error?: string}> => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not found. Please add OPENAI_API_KEY to your .env file.');
+    }
+
+    // Convert image data URL to base64 (remove data:image/...;base64, prefix)
+    const base64Image = imageData.split(',')[1];
+    const mimeType = imageData.split(';')[0].split(':')[1];
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+                        {
+                          type: "text",
+                          text: "Analyze this screenshot and create a concise bullet point summary focusing primarily on the text content and words visible. Extract and summarize any readable text, labels, titles, or written content. Format as bullet points and keep it brief (3-5 bullet points max). Prioritize textual information over visual elements."
+                        },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${mimeType};base64,${base64Image}`
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 150,
+      temperature: 0.3,
+    });
+
+    return {
+      success: true,
+      result: completion.choices[0]?.message?.content || "No summary generated"
+    };
+  } catch (error) {
+    console.error('Screenshot summarization error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to summarize screenshot'
+    };
+  }
 };
 
 // IPC handlers for clipboard operations
@@ -609,6 +966,116 @@ ipcMain.handle('chat-window:maximize', (event) => {
     } else {
       window.maximize();
     }
+  }
+});
+
+// Overlay window handlers
+ipcMain.handle('overlay:create', () => {
+  createOverlayWindow();
+  return { success: true };
+});
+
+ipcMain.handle('overlay:close', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    window.close();
+  }
+});
+
+ipcMain.handle('overlay:stop-interval', () => {
+  stopScreenshotInterval();
+  return { success: true };
+});
+
+ipcMain.handle('overlay:close-window', () => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.close();
+  }
+  return { success: true };
+});
+
+// Handle cropped screenshot from crop window
+ipcMain.on('cropped-screenshot', (event, croppedDataUrl: string) => {
+  // This will be handled by the takeScreenshotForOverlay function
+  // The event is already set up there with ipcMain.on
+});
+
+// Screenshot capture functionality
+ipcMain.handle('screenshot:capture', async () => {
+  try {
+    // Get all available sources
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1920, height: 1080 }
+    });
+
+    if (sources.length === 0) {
+      return {
+        success: false,
+        error: 'No screen sources available'
+      };
+    }
+
+    // Use the primary display source
+    const primarySource = sources[0];
+    
+    return {
+      success: true,
+      dataUrl: primarySource.thumbnail.toDataURL()
+    };
+  } catch (error) {
+    console.error('Screenshot capture error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to capture screenshot'
+    };
+  }
+});
+
+// AI summarization of screenshots
+ipcMain.handle('screenshot:summarize', async (event, imageData: string) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not found. Please add OPENAI_API_KEY to your .env file.');
+    }
+
+    // Convert image data URL to base64 (remove data:image/...;base64, prefix)
+    const base64Image = imageData.split(',')[1];
+    const mimeType = imageData.split(';')[0].split(':')[1];
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Please analyze this screenshot and provide a detailed summary of its contents. Include any text, UI elements, layout, and overall purpose or context you can identify."
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${mimeType};base64,${base64Image}`
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 1000,
+      temperature: 0.3,
+    });
+
+    return {
+      success: true,
+      result: completion.choices[0]?.message?.content || "No summary generated"
+    };
+  } catch (error) {
+    console.error('Screenshot summarization error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to summarize screenshot'
+    };
   }
 });
 

@@ -22,6 +22,7 @@
         <button class="tab-btn" data-tab="tasks">Tasks</button>
         <button class="tab-btn" data-tab="chat">Chat</button>
         <button class="tab-btn" data-tab="images">Images</button>
+        <button class="tab-btn" data-tab="summarize">Summarize</button>
       </div>
       
       <!-- Clipboard Tab Content -->
@@ -141,6 +142,24 @@
           </div>
         </div>
       </div>
+
+      <!-- Summarize Tab Content -->
+      <div id="summarize-tab" class="tab-content">
+        <div class="summarize-content">
+          <div class="summarize-info">
+            <!-- <p>Capture a screenshot and get an AI-powered summary of its contents, or start an overlay that takes screenshots every 5 minutes.</p> -->
+            <p>Start an overlay that will summarize the contents within the overlay window</p>
+          </div>
+          <div class="input-section">
+            <button id="start-overlay" class="btn btn-success">Start Overlay</button>
+          </div>
+          
+          <div class="overlay-summary-section">
+            <h4>Latest Overlay Summary:</h4>
+            <div id="overlay-summary" class="overlay-summary">No overlay summaries yet. Start the overlay to begin monitoring.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Settings Page View -->
@@ -231,6 +250,16 @@
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="images-tab-toggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-item">
+            <div class="setting-description">
+              <strong>Summarize Tab</strong>
+              <p>Capture screenshots and get AI-powered summaries of their contents.</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="summarize-tab-toggle" checked>
               <span class="slider"></span>
             </label>
           </div>
