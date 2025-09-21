@@ -4,6 +4,7 @@ import started from 'electron-squirrel-startup';
 import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
+import { Resend } from 'resend';
 
 // Load environment variables
 dotenv.config();
@@ -105,6 +106,9 @@ let screenshotInterval: NodeJS.Timeout | null = null;
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Initialize Resend client
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Create chat window function
 const createChatWindow = (initialMessage?: string) => {
@@ -212,7 +216,7 @@ const startScreenshotInterval = (intervalSeconds = 300) => {
   // Take initial screenshot
   takeScreenshotForOverlay();
   
-  // Set interval based on provided seconds
+ // Set interval based on provided seconds
   const intervalMs = intervalSeconds * 1000;
   screenshotInterval = setInterval(() => {
     takeScreenshotForOverlay();
@@ -471,7 +475,7 @@ const summarizeScreenshot = async (imageData: string): Promise<{success: boolean
           content: [
                         {
                           type: "text",
-                          text: "Analyze this screenshot and create a concise bullet point summary focusing primarily on the text content and words visible. Extract and summarize any readable text, labels, titles, or written content. Format as bullet points and keep it brief (3-5 bullet points max). Prioritize textual information over visual elements."
+                          text: "Analyze this screenshot and create a concise bullet point summary. Format as bullet points and keep it brief (3-5 bullet points max)."
                         },
             {
               type: "image_url",
@@ -1089,6 +1093,195 @@ ipcMain.handle('screenshot:summarize', async (event, imageData: string) => {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to summarize screenshot'
+    };
+  }
+});
+
+// Email functionality
+interface EmailConfig {
+  recipientEmail: string;
+  keywords: string[];
+  enabled: boolean;
+}
+
+interface SummaryData {
+  summary: string;
+  timestamp: string;
+  keywords: string[];
+}
+
+// Generate email HTML for summaries
+function generateSummaryEmailHTML(summaryData: SummaryData, weekRange?: string) {
+  const formattedDate = new Date(summaryData.timestamp).toLocaleDateString('en-US', { 
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+
+  const keywordsHTML = summaryData.keywords.length > 0 ? 
+    `<div style="margin-bottom: 16px;">
+      <strong>Triggered Keywords:</strong> 
+      ${summaryData.keywords.map(keyword => 
+        `<span style="background-color: #e5e7eb; color: #374151; padding: 4px 8px; border-radius: 4px; font-size: 14px; margin-right: 8px;">${keyword}</span>`
+      ).join('')}
+    </div>` : '';
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Screen Summary - ${formattedDate}</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+      <div style="background-color: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        <header style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; padding: 32px 24px; text-align: center;">
+          <h1 style="margin: 0 0 8px 0; font-size: 32px; font-weight: bold;">📊 Screen Summary</h1>
+          <h2 style="margin: 0; font-size: 18px; font-weight: 600; opacity: 0.9;">${formattedDate}</h2>
+        </header>
+        
+        <div style="padding: 32px 24px;">
+          ${keywordsHTML}
+          
+          <div style="background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 20px; margin-bottom: 24px; border-radius: 6px;">
+            <h3 style="margin: 0 0 12px 0; color: #1f2937; font-size: 18px; font-weight: 600;">
+              🤖 AI Summary
+            </h3>
+            <div style="color: #374151; line-height: 1.7;">
+              ${summaryData.summary.split('\n').map(line => `<p style="margin: 0 0 8px 0;">${line}</p>`).join('')}
+            </div>
+          </div>
+          
+          <div style="background-color: #f3f4f6; border-radius: 8px; padding: 16px; margin-top: 24px; text-align: center;">
+            <p style="margin: 0; color: #6b7280; font-size: 14px;">
+              This summary was automatically generated from your screen activity and sent because it matched your configured keywords.
+            </p>
+          </div>
+        </div>
+        
+        <footer style="background-color: #f3f4f6; padding: 16px 24px; text-align: center; color: #6b7280; font-size: 14px;">
+          <p style="margin: 0;">Generated by Productivity Layer on ${new Date().toLocaleDateString('en-US', { 
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+          })}</p>
+        </footer>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+// Check if summary contains any of the configured keywords
+function checkKeywordsMatch(summary: string, keywords: string[]): string[] {
+  const matchedKeywords: string[] = [];
+  const summaryLower = summary.toLowerCase();
+  
+  keywords.forEach(keyword => {
+    if (summaryLower.includes(keyword.toLowerCase())) {
+      matchedKeywords.push(keyword);
+    }
+  });
+  
+  return matchedKeywords;
+}
+
+// Send email with summary
+ipcMain.handle('email:send-summary', async (event, summaryData: SummaryData, emailConfig: EmailConfig) => {
+  try {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('Resend API key not found. Please add RESEND_API_KEY to your .env file.');
+    }
+
+    if (!emailConfig.enabled || !emailConfig.recipientEmail) {
+      return {
+        success: false,
+        error: 'Email notifications are disabled or no recipient email configured'
+      };
+    }
+
+    const matchedKeywords = checkKeywordsMatch(summaryData.summary, emailConfig.keywords);
+    
+    if (matchedKeywords.length === 0) {
+      return {
+        success: true,
+        message: 'Summary does not match any configured keywords, email not sent',
+        matchedKeywords: []
+      };
+    }
+
+    const emailHTML = generateSummaryEmailHTML({
+      ...summaryData,
+      keywords: matchedKeywords
+    });
+
+    const { data, error } = await resend.emails.send({
+      from: 'Productivity Layer <onboarding@resend.dev>',
+      to: [emailConfig.recipientEmail],
+      subject: `Screen Summary - ${matchedKeywords.join(', ')} - ${new Date().toLocaleDateString()}`,
+      html: emailHTML,
+      reply_to: 'onboarding@resend.dev',
+    });
+
+    if (error) {
+      console.error('Resend error:', error);
+      return {
+        success: false,
+        error: 'Failed to send email',
+        details: error
+      };
+    }
+
+    return {
+      success: true,
+      messageId: data?.id,
+      matchedKeywords,
+      message: 'Email sent successfully'
+    };
+  } catch (error) {
+    console.error('Email sending error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to send email'
+    };
+  }
+});
+
+// Save email configuration
+ipcMain.handle('email:save-config', (event, config: EmailConfig) => {
+  try {
+    // In a real app, you might want to save this to a file or database
+    // For now, we'll just validate the config
+    if (config.recipientEmail && !config.recipientEmail.includes('@')) {
+      return {
+        success: false,
+        error: 'Please enter a valid email address'
+      };
+    }
+
+    if (config.keywords && config.keywords.some(keyword => keyword.trim() === '')) {
+      return {
+        success: false,
+        error: 'Keywords cannot be empty'
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Email configuration saved successfully'
+    };
+  } catch (error) {
+    console.error('Email config save error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to save email configuration'
     };
   }
 });

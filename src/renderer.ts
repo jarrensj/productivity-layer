@@ -87,6 +87,10 @@ interface ElectronAPI {
     onNewSummary: (callback: (summary: string) => void) => void;
     onOverlaySummary: (callback: (summary: string) => void) => void;
   };
+  email: {
+    sendSummary: (summaryData: any, emailConfig: any) => Promise<{success: boolean; message?: string; error?: string; matchedKeywords?: string[]}>;
+    saveConfig: (config: any) => Promise<{success: boolean; message?: string; error?: string}>;
+  };
 }
 
 declare global {
@@ -2185,6 +2189,21 @@ class SummarizeManager {
   private isOverlayActive = false;
   private isRecordingActive = false;
   private currentInterval = 300; // Default 5 minutes in seconds
+  
+  // Email configuration elements
+  private emailToggle: HTMLInputElement;
+  private emailRecipientInput: HTMLInputElement;
+  private emailKeywordsTextarea: HTMLTextAreaElement;
+  private saveEmailConfigButton: HTMLElement;
+  private testEmailButton: HTMLElement;
+  private emailConfigSection: HTMLElement;
+  
+  // Email configuration state
+  private emailConfig = {
+    enabled: false,
+    recipientEmail: '',
+    keywords: [] as string[]
+  };
 
   constructor() {
     this.overlayButton = document.getElementById('start-overlay')!;
@@ -2194,12 +2213,21 @@ class SummarizeManager {
     this.overlaySummaryContainer = document.getElementById('overlay-summary')!;
     this.resultsContainer = document.getElementById('overlay-summary')!; // Use same container
     
+    // Email configuration elements
+    this.emailToggle = document.getElementById('email-notifications-toggle') as HTMLInputElement;
+    this.emailRecipientInput = document.getElementById('email-recipient') as HTMLInputElement;
+    this.emailKeywordsTextarea = document.getElementById('email-keywords') as HTMLTextAreaElement;
+    this.saveEmailConfigButton = document.getElementById('save-email-config')!;
+    this.testEmailButton = document.getElementById('test-email')!;
+    this.emailConfigSection = document.querySelector('.form-section:last-child') as HTMLElement;
+    
     this.init();
   }
 
   private init() {
     this.setupEventListeners();
     this.setupOverlayStateListener();
+    this.loadEmailConfiguration();
   }
 
   private setupEventListeners() {
@@ -2228,6 +2256,28 @@ class SummarizeManager {
 
     // Load saved interval preference
     this.loadIntervalPreference();
+
+    // Email configuration event listeners
+    this.emailToggle.addEventListener('change', () => {
+      this.toggleEmailNotifications();
+    });
+
+    this.saveEmailConfigButton.addEventListener('click', () => {
+      this.saveEmailConfiguration();
+    });
+
+    this.testEmailButton.addEventListener('click', () => {
+      this.sendTestEmail();
+    });
+
+    // Auto-save email config when inputs change
+    this.emailRecipientInput.addEventListener('blur', () => {
+      this.saveEmailConfiguration();
+    });
+
+    this.emailKeywordsTextarea.addEventListener('blur', () => {
+      this.saveEmailConfiguration();
+    });
   }
 
   private setupOverlayStateListener() {
@@ -2258,13 +2308,39 @@ class SummarizeManager {
     }
   }
 
-  private updateOverlaySummary(summary: string) {
+  private async updateOverlaySummary(summary: string) {
     if (this.overlaySummaryContainer) {
       this.overlaySummaryContainer.textContent = summary;
       this.overlaySummaryContainer.className = 'overlay-summary success';
       
       // Show a brief success message
       this.showMessage('New overlay summary received!', 'success');
+      
+      // Automatically check if email should be sent based on keywords
+      await this.checkAndSendEmail(summary);
+    }
+  }
+
+  private async checkAndSendEmail(summary: string) {
+    try {
+      const summaryData = {
+        summary: summary,
+        timestamp: new Date().toISOString(),
+        keywords: this.emailConfig.keywords
+      };
+
+      const result = await window.electronAPI.email.sendSummary(summaryData, this.emailConfig);
+      
+      if (result.success && result.matchedKeywords && result.matchedKeywords.length > 0) {
+        this.showMessage(`Email sent! Matched keywords: ${result.matchedKeywords.join(', ')}`, 'success');
+      } else if (result.success && !result.matchedKeywords?.length) {
+        // Summary doesn't match any keywords, no email sent
+        console.log('Summary does not match configured keywords, no email sent');
+      } else {
+        console.error('Failed to send email:', result.error);
+      }
+    } catch (error) {
+      console.error('Error checking keywords and sending email:', error);
     }
   }
 
@@ -2441,6 +2517,130 @@ class SummarizeManager {
 
   private showMessage(message: string, type: 'success' | 'warning' | 'error') {
     Utils.showMessage(message, type);
+  }
+
+  // Email configuration methods
+  private toggleEmailNotifications() {
+    this.emailConfig.enabled = this.emailToggle.checked;
+    
+    // Update UI state
+    if (this.emailConfig.enabled) {
+      this.emailConfigSection.classList.remove('disabled');
+      this.emailRecipientInput.removeAttribute('disabled');
+      this.emailKeywordsTextarea.removeAttribute('disabled');
+    } else {
+      this.emailConfigSection.classList.add('disabled');
+      this.emailRecipientInput.setAttribute('disabled', 'true');
+      this.emailKeywordsTextarea.setAttribute('disabled', 'true');
+    }
+    
+    this.saveEmailConfiguration();
+  }
+
+  private async saveEmailConfiguration() {
+    try {
+      // Update email config from UI
+      this.emailConfig.enabled = this.emailToggle.checked;
+      this.emailConfig.recipientEmail = this.emailRecipientInput.value.trim();
+      
+      // Parse keywords from textarea
+      const keywordsText = this.emailKeywordsTextarea.value.trim();
+      this.emailConfig.keywords = keywordsText 
+        ? keywordsText.split(',').map(keyword => keyword.trim()).filter(keyword => keyword.length > 0)
+        : [];
+
+      // Validate configuration
+      if (this.emailConfig.enabled) {
+        if (!this.emailConfig.recipientEmail) {
+          this.showMessage('Please enter a recipient email address', 'warning');
+          return;
+        }
+        
+        if (!this.emailConfig.recipientEmail.includes('@')) {
+          this.showMessage('Please enter a valid email address', 'error');
+          return;
+        }
+        
+        if (this.emailConfig.keywords.length === 0) {
+          this.showMessage('Please enter at least one keyword', 'warning');
+          return;
+        }
+      }
+
+      // Save to localStorage
+      localStorage.setItem('emailConfiguration', JSON.stringify(this.emailConfig));
+      
+      this.showMessage('Email configuration saved successfully', 'success');
+    } catch (error) {
+      console.error('Failed to save email configuration:', error);
+      this.showMessage('Failed to save email configuration', 'error');
+    }
+  }
+
+  private loadEmailConfiguration() {
+    try {
+      const saved = localStorage.getItem('emailConfiguration');
+      if (saved) {
+        this.emailConfig = JSON.parse(saved);
+        
+        // Update UI elements
+        this.emailToggle.checked = this.emailConfig.enabled;
+        this.emailRecipientInput.value = this.emailConfig.recipientEmail;
+        this.emailKeywordsTextarea.value = this.emailConfig.keywords.join(', ');
+        
+        // Update UI state
+        this.toggleEmailNotifications();
+      }
+    } catch (error) {
+      console.error('Failed to load email configuration:', error);
+    }
+  }
+
+  private async sendTestEmail() {
+    try {
+      if (!this.emailConfig.enabled) {
+        this.showMessage('Please enable email notifications first', 'warning');
+        return;
+      }
+
+      if (!this.emailConfig.recipientEmail) {
+        this.showMessage('Please enter a recipient email address', 'warning');
+        return;
+      }
+
+      if (this.emailConfig.keywords.length === 0) {
+        this.showMessage('Please enter at least one keyword', 'warning');
+        return;
+      }
+
+      this.testEmailButton.textContent = 'Sending...';
+      this.testEmailButton.setAttribute('disabled', 'true');
+
+      // Create a test summary with a keyword to ensure it gets sent
+      const testSummary = `This is a test summary containing the keyword "${this.emailConfig.keywords[0]}" to verify email functionality is working correctly.`;
+      
+      const summaryData = {
+        summary: testSummary,
+        timestamp: new Date().toISOString(),
+        keywords: this.emailConfig.keywords
+      };
+
+      const result = await window.electronAPI.email.sendSummary(summaryData, this.emailConfig);
+      
+      if (result.success && result.matchedKeywords && result.matchedKeywords.length > 0) {
+        this.showMessage(`Test email sent successfully! Matched keywords: ${result.matchedKeywords.join(', ')}`, 'success');
+      } else if (result.success && !result.matchedKeywords?.length) {
+        this.showMessage('Test email not sent - no keywords matched', 'warning');
+      } else {
+        this.showMessage(`Failed to send test email: ${result.error || 'Unknown error'}`, 'error');
+      }
+    } catch (error) {
+      console.error('Failed to send test email:', error);
+      this.showMessage('Failed to send test email', 'error');
+    } finally {
+      this.testEmailButton.textContent = 'Send Test Email';
+      this.testEmailButton.removeAttribute('disabled');
+    }
   }
 }
 

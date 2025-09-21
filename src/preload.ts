@@ -61,4 +61,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onNewSummary: (callback: (summary: string) => void) => ipcRenderer.on('new-summary', (event, summary) => callback(summary)),
     onOverlaySummary: (callback: (summary: string) => void) => ipcRenderer.on('overlay-summary', (event, summary) => callback(summary)),
   },
+  email: {
+    sendSummary: (summaryData: any, emailConfig: any) => ipcRenderer.invoke('email:send-summary', summaryData, emailConfig),
+    saveConfig: (config: any) => ipcRenderer.invoke('email:save-config', config),
+  },
 });

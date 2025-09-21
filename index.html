@@ -148,23 +148,55 @@
       <div id="summarize-tab" class="tab-content">
         <div class="summarize-content">
           <div class="summarize-info">
-            <p>Start an overlay window and configure screen recording settings for AI-powered summaries.</p>
+            <p>Configure screen recording and email notifications for AI-powered summaries.</p>
           </div>
           
-          <!-- Main Controls Section -->
-          <div class="main-controls-section">
-            <div class="control-buttons">
-              <button id="start-overlay" class="btn btn-primary">Start Overlay</button>
-              <button id="start-recording" class="btn btn-success">Start Recording</button>
+          <!-- Unified Settings Form -->
+          <div class="summarize-settings-form">
+            <!-- Overlay Controls -->
+            <div class="form-section">
+              <h4>Overlay & Recording</h4>
+              <div class="control-buttons">
+                <button id="start-overlay" class="btn btn-primary">Start Overlay</button>
+                <button id="start-recording" class="btn btn-success">Start Recording</button>
+              </div>
+              
+              <div class="interval-setting">
+                <label for="interval-minutes">Screenshot Interval:</label>
+                <div class="interval-controls">
+                  <input type="number" id="interval-minutes" min="0" max="10" value="5" class="interval-input">
+                  <span class="interval-label">min</span>
+                  <input type="number" id="interval-seconds" min="0" max="59" value="0" class="interval-input">
+                  <span class="interval-label">sec</span>
+                </div>
+              </div>
             </div>
-            
-            <div class="interval-setting">
-              <label for="interval-minutes">Screenshot Interval:</label>
-              <div class="interval-controls">
-                <input type="number" id="interval-minutes" min="0" max="10" value="5" class="interval-input">
-                <span class="interval-label">min</span>
-                <input type="number" id="interval-seconds" min="0" max="59" value="0" class="interval-input">
-                <span class="interval-label">sec</span>
+
+            <!-- Email Configuration -->
+            <div class="form-section">
+              <h4>Email Notifications</h4>
+              <div class="email-toggle">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="email-notifications-toggle">
+                  <span class="slider"></span>
+                </label>
+                <span class="email-toggle-label">Enable email notifications</span>
+              </div>
+              
+              <div class="email-input-group">
+                <label for="email-recipient">Recipient Email:</label>
+                <input type="email" id="email-recipient" placeholder="your-email@example.com" class="email-input">
+              </div>
+              
+              <div class="keywords-input-group">
+                <label for="email-keywords">Keywords (comma-separated):</label>
+                <textarea id="email-keywords" placeholder="meeting, important, urgent, deadline..." class="keywords-textarea" rows="2"></textarea>
+                <div class="keywords-help">Summaries containing any of these keywords will be sent via email</div>
+              </div>
+              
+              <div class="email-actions">
+                <button id="save-email-config" class="btn btn-secondary">Save Settings</button>
+                <button id="test-email" class="btn btn-primary">Send Test Email</button>
               </div>
             </div>
           </div>
