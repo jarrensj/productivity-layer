@@ -969,6 +969,24 @@ ipcMain.handle('chat-window:maximize', (event) => {
   }
 });
 
+// App reset handler
+ipcMain.handle('app:clear-reset', () => {
+  try {
+    // Clear all stored data
+    savedClipboardItems = [];
+    savedLinkItems = [];
+    savedTaskItems = [];
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to reset app data:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to reset app data'
+    };
+  }
+});
+
 // Overlay window handlers
 ipcMain.handle('overlay:create', () => {
   createOverlayWindow();

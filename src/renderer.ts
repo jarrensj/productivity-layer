@@ -70,6 +70,9 @@ interface ElectronAPI {
   images: {
     generateImage: (prompt: string, imageData: string) => Promise<{success: boolean; type?: string; result?: string; error?: string}>;
   };
+  app: {
+    clearResetApp: () => Promise<{success: boolean; error?: string}>;
+  };
   screenshot: {
     capture: () => Promise<{success: boolean; dataUrl?: string; error?: string}>;
     summarize: (imageData: string) => Promise<{success: boolean; result?: string; error?: string}>;
@@ -273,6 +276,43 @@ class ClipboardManager {
         } catch (error) {
           console.error('Failed to clear tasks:', error);
           this.showMessage('Failed to clear tasks', 'error');
+        }
+      }
+    });
+
+    // Reset App button
+    document.getElementById('clear-reset-app')?.addEventListener('click', async () => {
+      const confirmMessage = 'Are you sure you want to reset the entire app? This will:\n\n' +
+        '• Clear all clipboard items\n' +
+        '• Clear all favorite links\n' +
+        '• Clear all tasks\n' +
+        '• Clear uploaded images\n' +
+        '• Reset timer state\n' +
+        '• Reset all settings to defaults\n\n' +
+        'This action cannot be undone!';
+        
+      if (confirm(confirmMessage)) {
+        try {
+          // Call the main process to clear all data
+          await window.electronAPI.app.clearResetApp();
+          
+          // Clear localStorage completely
+          localStorage.clear();
+          
+          // Dispatch events to update all managers
+          document.dispatchEvent(new CustomEvent('clearAllClipboard'));
+          document.dispatchEvent(new CustomEvent('clearAllLinks'));
+          document.dispatchEvent(new CustomEvent('clearAllTasks'));
+          document.dispatchEvent(new CustomEvent('clearAllImages'));
+          document.dispatchEvent(new CustomEvent('resetAllSettings'));
+          
+          // Reset UI state
+          this.resetToDefaults();
+          
+          this.showMessage('App has been reset successfully', 'success');
+        } catch (error) {
+          console.error('Failed to reset app:', error);
+          this.showMessage('Failed to reset app', 'error');
         }
       }
     });
@@ -640,7 +680,7 @@ class ClipboardManager {
       setTimeout(() => {
         const stored = localStorage.getItem('tabPreferences');
         const preferences = stored ? JSON.parse(stored) : {};
-        const tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
+        const tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer'];
         this.initializeTabOrderUI(tabOrder);
       }, 100);
     }
@@ -766,8 +806,10 @@ class ClipboardManager {
         
         // Add 'timer' to tabOrder if missing
         if (!preferences.tabOrder || !preferences.tabOrder.includes('timer')) {
-          preferences.tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
-          preferences.tabOrder.push('timer');
+          preferences.tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer'];
+          if (!preferences.tabOrder.includes('timer')) {
+            preferences.tabOrder.push('timer');
+          }
           needsUpdate = true;
         }
         
@@ -980,17 +1022,17 @@ class ClipboardManager {
           </div>
         `;
 
-        // Find the Images Tab toggle (last toggle) to insert after it
+        // Find the Timer Tab toggle (last toggle) to insert after it
         const settingItems = Array.from(interfaceSection.querySelectorAll('.setting-item'));
-        const imagesTabToggle = settingItems.find(item => {
+        const timerTabToggle = settingItems.find(item => {
           const strong = item.querySelector('strong');
-          return strong && strong.textContent?.trim() === 'Images Tab';
+          return strong && strong.textContent?.trim() === 'Timer Tab';
         });
         
-        if (imagesTabToggle) {
-          imagesTabToggle.insertAdjacentHTML('afterend', tabOrderHTML);
+        if (timerTabToggle) {
+          timerTabToggle.insertAdjacentHTML('afterend', tabOrderHTML);
           tabOrderContainer = document.getElementById('tab-order-container');
-          console.log('Tab order container created after Images Tab toggle');
+          console.log('Tab order container created after Timer Tab toggle');
         } else {
           // Fallback: insert at the end of the interface section
           interfaceSection.insertAdjacentHTML('beforeend', tabOrderHTML);
@@ -1101,6 +1143,58 @@ class ClipboardManager {
     } catch (error) {
       console.error('Failed to load opacity preference:', error);
     }
+  }
+
+  private resetToDefaults() {
+    // Clear all items
+    this.items = [];
+    this.renderItems();
+    
+    // Reset opacity to default
+    const defaultOpacity = 80;
+    const opacitySlider = document.getElementById('opacity-slider') as HTMLInputElement;
+    if (opacitySlider) {
+      opacitySlider.value = defaultOpacity.toString();
+      this.updateOpacityValue(defaultOpacity);
+      this.setWindowOpacity(defaultOpacity);
+    }
+    
+    // Reset all tab toggles to enabled (default state)
+    const tabToggles = [
+      'clipboard-tab-toggle',
+      'grammar-tab-toggle', 
+      'links-tab-toggle',
+      'tasks-tab-toggle',
+      'chat-tab-toggle',
+      'images-tab-toggle',
+      'timer-tab-toggle'
+    ];
+    
+    tabToggles.forEach(toggleId => {
+      const toggle = document.getElementById(toggleId) as HTMLInputElement;
+      if (toggle) {
+        toggle.checked = true;
+        const tabName = toggleId.replace('-tab-toggle', '');
+        this.toggleTabVisibility(tabName, true);
+      }
+    });
+    
+    // Reset tab order to default
+    const defaultTabOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer'];
+    this.applyTabOrder(defaultTabOrder);
+    
+    const settingsPage = document.getElementById('settings-page');
+    if (settingsPage && settingsPage.style.display !== 'none') {
+      this.initializeTabOrderUI(defaultTabOrder);
+    }
+    
+    // Ensure clipboard tab is active
+    setTimeout(() => {
+      const clipboardTab = document.querySelector('[data-tab="clipboard"]') as HTMLElement;
+      if (clipboardTab) {
+        clipboardTab.click();
+      }
+    }, 100);
   }
 }
 
@@ -1769,7 +1863,14 @@ class ImagesManager {
 
   private init() {
     this.setupEventListeners();
+    this.setupGlobalEventListeners();
     this.loadSavedImage();
+  }
+
+  private setupGlobalEventListeners() {
+    document.addEventListener('clearAllImages', () => {
+      this.clearImage();
+    });
   }
 
   private setupEventListeners() {
@@ -2221,9 +2322,16 @@ class TimerManager {
   
   private init() {
     this.setupEventListeners();
+    this.setupGlobalEventListeners();
     this.loadTimerState();
     this.updateDisplay();
     this.updateButtonStates();
+  }
+
+  private setupGlobalEventListeners() {
+    document.addEventListener('resetAllSettings', () => {
+      this.reset();
+    });
   }
   
   private setupEventListeners() {

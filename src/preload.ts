@@ -44,6 +44,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   images: {
     generateImage: (prompt: string, imageData: string) => ipcRenderer.invoke('images:generate', prompt, imageData),
   },
+  app: {
+    clearResetApp: () => ipcRenderer.invoke('app:clear-reset'),
+  },
   screenshot: {
     capture: () => ipcRenderer.invoke('screenshot:capture'),
     summarize: (imageData: string) => ipcRenderer.invoke('screenshot:summarize', imageData),
