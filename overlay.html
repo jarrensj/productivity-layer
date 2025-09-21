@@ -1,0 +1,803 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Transparent Overlay</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        margin: 0;
+        padding: 0;
+        background: rgba(0, 0, 0, 0.1);
+        color: white;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 12px;
+        overflow: hidden;
+        -webkit-app-region: drag;
+      }
+      
+      .overlay-container {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: 
+          linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          rgba(0, 0, 0, 0.1);
+        background-size: 20px 20px;
+        position: relative;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        box-sizing: border-box;
+        backdrop-filter: blur(1px);
+      }
+      
+      /* Minimal control panel - only visible when needed */
+      .control-panel {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.8);
+        border-radius: 8px;
+        padding: 8px 12px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        min-width: 200px;
+        max-width: 300px;
+        -webkit-app-region: no-drag;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+      }
+      
+      .control-panel.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      
+      .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      
+      .panel-title {
+        font-size: 11px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9);
+      }
+      
+      .close-btn {
+        width: 16px;
+        height: 16px;
+        border: none;
+        border-radius: 3px;
+        background: rgba(220, 53, 69, 0.8);
+        color: white;
+        cursor: pointer;
+        font-size: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+      }
+      
+      .close-btn:hover {
+        background: rgba(220, 53, 69, 1);
+      }
+      
+      .status-section {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+      
+      .status-indicator {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #28a745;
+        animation: pulse 2s infinite;
+      }
+      
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+      }
+      
+      .status-text {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.8);
+      }
+      
+      .summary-section {
+        margin-bottom: 8px;
+      }
+      
+      .summary-title {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 4px;
+        font-weight: 500;
+      }
+      
+      .summary-text {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.9);
+        line-height: 1.3;
+        max-height: 60px;
+        overflow-y: auto;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 6px;
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      
+      .summary-actions {
+        display: flex;
+        gap: 4px;
+      }
+      
+      .action-btn {
+        flex: 1;
+        padding: 4px 6px;
+        border: none;
+        border-radius: 3px;
+        font-size: 9px;
+        cursor: pointer;
+        transition: all 0.2s;
+        -webkit-app-region: no-drag;
+      }
+      
+      .capture-btn {
+        background: rgba(40, 167, 69, 0.8);
+        color: white;
+      }
+      
+      .capture-btn:hover {
+        background: rgba(40, 167, 69, 1);
+      }
+      
+      .stop-btn {
+        background: rgba(220, 53, 69, 0.8);
+        color: white;
+      }
+      
+      .stop-btn:hover {
+        background: rgba(220, 53, 69, 1);
+      }
+      
+      /* Show/hide trigger area */
+      .trigger-area {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 20px;
+        height: 20px;
+        background: transparent;
+        cursor: pointer;
+        -webkit-app-region: no-drag;
+      }
+      
+      /* Corner indicators */
+      .corner-indicator {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        pointer-events: none;
+      }
+      
+      .corner-top-left {
+        top: 5px;
+        left: 5px;
+        border-right: none;
+        border-bottom: none;
+      }
+      
+      .corner-top-right {
+        top: 5px;
+        right: 5px;
+        border-left: none;
+        border-bottom: none;
+      }
+      
+      .corner-bottom-left {
+        bottom: 5px;
+        left: 5px;
+        border-right: none;
+        border-top: none;
+      }
+      
+      .corner-bottom-right {
+        bottom: 5px;
+        right: 5px;
+        border-left: none;
+        border-top: none;
+      }
+      
+      /* Center indicator */
+      .center-indicator {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 40px;
+        height: 40px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        pointer-events: none;
+        opacity: 0.6;
+      }
+      
+      .center-indicator::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 20px;
+        height: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+      }
+      
+      /* Resize handles */
+      .resize-handle {
+        position: absolute;
+        background: rgba(255, 255, 255, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        -webkit-app-region: no-drag;
+      }
+      
+      .resize-handle:hover {
+        background: rgba(255, 255, 255, 0.5);
+        border-color: rgba(255, 255, 255, 0.8);
+      }
+      
+      .resize-n {
+        top: -2px;
+        left: 10px;
+        right: 10px;
+        height: 4px;
+        cursor: n-resize;
+      }
+      
+      .resize-s {
+        bottom: -2px;
+        left: 10px;
+        right: 10px;
+        height: 4px;
+        cursor: s-resize;
+      }
+      
+      .resize-e {
+        top: 10px;
+        bottom: 10px;
+        right: -2px;
+        width: 4px;
+        cursor: e-resize;
+      }
+      
+      .resize-w {
+        top: 10px;
+        bottom: 10px;
+        left: -2px;
+        width: 4px;
+        cursor: w-resize;
+      }
+      
+      .resize-ne {
+        top: -2px;
+        right: -2px;
+        width: 8px;
+        height: 8px;
+        cursor: ne-resize;
+      }
+      
+      .resize-nw {
+        top: -2px;
+        left: -2px;
+        width: 8px;
+        height: 8px;
+        cursor: nw-resize;
+      }
+      
+      .resize-se {
+        bottom: -2px;
+        right: -2px;
+        width: 8px;
+        height: 8px;
+        cursor: se-resize;
+      }
+      
+      .resize-sw {
+        bottom: -2px;
+        left: -2px;
+        width: 8px;
+        height: 8px;
+        cursor: sw-resize;
+      }
+      
+      /* Size indicator */
+      .size-indicator {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-family: monospace;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        backdrop-filter: blur(5px);
+      }
+      
+      .size-indicator.visible {
+        opacity: 1;
+      }
+      
+      /* Capture area indicator */
+      .capture-indicator {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: 2px dashed rgba(255, 255, 255, 0.3);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      
+      .capture-indicator.active {
+        opacity: 1;
+      }
+      
+      /* Loading indicator */
+      .loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 10px;
+        background: rgba(0, 0, 0, 0.8);
+        padding: 8px 12px;
+        border-radius: 4px;
+        backdrop-filter: blur(10px);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      
+      .loading.visible {
+        opacity: 1;
+      }
+      
+      /* Summary history */
+      .summary-history {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.8);
+        border-radius: 8px;
+        padding: 8px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        max-width: 300px;
+        max-height: 150px;
+        overflow-y: auto;
+        -webkit-app-region: no-drag;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+      }
+      
+      .summary-history.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      
+      .history-item {
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      
+      .history-item:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+      
+      .history-time {
+        font-size: 8px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-bottom: 4px;
+      }
+      
+      .history-summary {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.8);
+        line-height: 1.2;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="overlay-container">
+      <!-- Corner indicators -->
+      <div class="corner-indicator corner-top-left"></div>
+      <div class="corner-indicator corner-top-right"></div>
+      <div class="corner-indicator corner-bottom-left"></div>
+      <div class="corner-indicator corner-bottom-right"></div>
+      
+      <!-- Center indicator -->
+      <div class="center-indicator"></div>
+      
+      <!-- Size indicator -->
+      <div class="size-indicator" id="size-indicator">600 x 400</div>
+      
+      <!-- Resize handles -->
+      <div class="resize-handle resize-n"></div>
+      <div class="resize-handle resize-s"></div>
+      <div class="resize-handle resize-e"></div>
+      <div class="resize-handle resize-w"></div>
+      <div class="resize-handle resize-ne"></div>
+      <div class="resize-handle resize-nw"></div>
+      <div class="resize-handle resize-se"></div>
+      <div class="resize-handle resize-sw"></div>
+      
+      <!-- Capture area indicator -->
+      <div class="capture-indicator" id="capture-indicator"></div>
+      
+      <!-- Loading indicator -->
+      <div class="loading" id="loading-indicator">Capturing...</div>
+      
+      <!-- Trigger area to show controls -->
+      <div class="trigger-area" id="trigger-area"></div>
+      
+      <!-- Control panel -->
+      <div class="control-panel" id="control-panel">
+        <div class="panel-header">
+          <span class="panel-title">Screen Monitor</span>
+          <button class="close-btn" id="close-overlay" title="Close Overlay">×</button>
+        </div>
+        
+        <div class="status-section">
+          <div class="status-indicator"></div>
+          <span class="status-text">Monitoring active - Every 5 minutes</span>
+        </div>
+        
+        <div class="summary-section">
+          <div class="summary-title">Latest Summary:</div>
+          <div class="summary-text" id="latest-summary">Waiting for first capture...</div>
+        </div>
+        
+        <div style="font-size: 8px; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px; line-height: 1.2;">
+          <strong>Shortcuts:</strong><br>
+          • Drag edges to resize<br>
+          • Press S to show size<br>
+          • Press C for controls<br>
+          • Press H for history
+        </div>
+        
+        <div class="summary-actions">
+          <button class="action-btn capture-btn" id="manual-capture">Capture Now</button>
+          <button class="action-btn stop-btn" id="stop-monitoring">Stop</button>
+        </div>
+      </div>
+      
+      <!-- Summary history -->
+      <div class="summary-history" id="summary-history">
+        <div style="font-size: 10px; color: rgba(255, 255, 255, 0.7); margin-bottom: 8px; font-weight: 500;">
+          Summary History
+        </div>
+        <div id="history-list"></div>
+      </div>
+    </div>
+    
+    <script>
+      // Transparent Overlay functionality
+      class TransparentOverlay {
+        constructor() {
+          this.lastCaptureTime = null;
+          this.summaryHistory = [];
+          this.isCapturing = false;
+          this.controlPanelVisible = false;
+          this.historyVisible = false;
+          this.init();
+        }
+        
+        init() {
+          this.setupEventListeners();
+          this.setupScreenshotListener();
+          this.setupSummaryListener();
+          this.setupResizeHandlers();
+          this.updateSizeIndicator();
+        }
+        
+        setupEventListeners() {
+          // Trigger area to show/hide control panel
+          document.getElementById('trigger-area')?.addEventListener('click', () => {
+            this.toggleControlPanel();
+          });
+          
+          // Control panel events
+          document.getElementById('close-overlay')?.addEventListener('click', () => {
+            this.closeOverlay();
+          });
+          
+          document.getElementById('stop-monitoring')?.addEventListener('click', () => {
+            this.stopMonitoring();
+          });
+          
+          document.getElementById('manual-capture')?.addEventListener('click', () => {
+            this.manualCapture();
+          });
+          
+          // Show history on double-click
+          document.getElementById('trigger-area')?.addEventListener('dblclick', () => {
+            this.toggleHistory();
+          });
+          
+          // Hide panels when clicking outside
+          document.addEventListener('click', (e) => {
+            if (!e.target.closest('.control-panel') && !e.target.closest('.trigger-area') && 
+                !e.target.closest('.summary-history')) {
+              this.hideControlPanel();
+              this.hideHistory();
+            }
+          });
+          
+          // Keyboard shortcuts
+          document.addEventListener('keydown', (e) => {
+            // Toggle size indicator with 'S' key
+            if (e.key === 's' || e.key === 'S') {
+              e.preventDefault();
+              const sizeIndicator = document.getElementById('size-indicator');
+              if (sizeIndicator) {
+                sizeIndicator.classList.toggle('visible');
+              }
+            }
+            
+            // Toggle control panel with 'C' key
+            if (e.key === 'c' || e.key === 'C') {
+              e.preventDefault();
+              this.toggleControlPanel();
+            }
+            
+            // Toggle history with 'H' key
+            if (e.key === 'h' || e.key === 'H') {
+              e.preventDefault();
+              this.toggleHistory();
+            }
+          });
+        }
+        
+        setupScreenshotListener() {
+          if (window.electronAPI) {
+            window.electronAPI.overlay.onNewScreenshot((dataUrl) => {
+              this.handleNewScreenshot(dataUrl);
+            });
+          }
+        }
+        
+        setupSummaryListener() {
+          if (window.electronAPI) {
+            window.electronAPI.overlay.onNewSummary((summary) => {
+              this.handleNewSummary(summary);
+            });
+          }
+        }
+        
+        setupResizeHandlers() {
+          // Listen for window resize events
+          window.addEventListener('resize', () => {
+            this.updateSizeIndicator();
+          });
+          
+          // Show size indicator on hover over resize handles
+          const resizeHandles = document.querySelectorAll('.resize-handle');
+          resizeHandles.forEach(handle => {
+            handle.addEventListener('mouseenter', () => {
+              this.showSizeIndicator();
+            });
+            
+            handle.addEventListener('mouseleave', () => {
+              this.hideSizeIndicator();
+            });
+          });
+        }
+        
+        updateSizeIndicator() {
+          const sizeIndicator = document.getElementById('size-indicator');
+          if (sizeIndicator) {
+            const width = Math.round(window.innerWidth);
+            const height = Math.round(window.innerHeight);
+            sizeIndicator.textContent = `${width} x ${height}`;
+          }
+        }
+        
+        showSizeIndicator() {
+          const sizeIndicator = document.getElementById('size-indicator');
+          if (sizeIndicator) {
+            sizeIndicator.classList.add('visible');
+          }
+        }
+        
+        hideSizeIndicator() {
+          const sizeIndicator = document.getElementById('size-indicator');
+          if (sizeIndicator) {
+            sizeIndicator.classList.remove('visible');
+          }
+        }
+        
+        toggleControlPanel() {
+          this.controlPanelVisible = !this.controlPanelVisible;
+          const panel = document.getElementById('control-panel');
+          if (panel) {
+            panel.classList.toggle('visible', this.controlPanelVisible);
+          }
+        }
+        
+        hideControlPanel() {
+          this.controlPanelVisible = false;
+          const panel = document.getElementById('control-panel');
+          if (panel) {
+            panel.classList.remove('visible');
+          }
+        }
+        
+        toggleHistory() {
+          this.historyVisible = !this.historyVisible;
+          const history = document.getElementById('summary-history');
+          if (history) {
+            history.classList.toggle('visible', this.historyVisible);
+          }
+        }
+        
+        hideHistory() {
+          this.historyVisible = false;
+          const history = document.getElementById('summary-history');
+          if (history) {
+            history.classList.remove('visible');
+          }
+        }
+        
+        handleNewScreenshot(dataUrl) {
+          this.lastCaptureTime = new Date();
+          this.showLoading();
+          this.showCaptureIndicator();
+          
+          // Hide indicators after a short delay
+          setTimeout(() => {
+            this.hideLoading();
+            this.hideCaptureIndicator();
+          }, 1000);
+        }
+        
+        handleNewSummary(summary) {
+          this.hideLoading();
+          this.hideCaptureIndicator();
+          
+          // Update latest summary
+          const summaryElement = document.getElementById('latest-summary');
+          if (summaryElement) {
+            summaryElement.textContent = summary;
+          }
+          
+          // Add to history
+          this.addToHistory(summary);
+        }
+        
+        addToHistory(summary) {
+          this.summaryHistory.unshift({
+            time: this.lastCaptureTime || new Date(),
+            summary: summary
+          });
+          
+          // Keep only last 10 summaries
+          if (this.summaryHistory.length > 10) {
+            this.summaryHistory = this.summaryHistory.slice(0, 10);
+          }
+          
+          this.updateHistoryDisplay();
+        }
+        
+        updateHistoryDisplay() {
+          const historyList = document.getElementById('history-list');
+          if (!historyList) return;
+          
+          historyList.innerHTML = this.summaryHistory.map(item => `
+            <div class="history-item">
+              <div class="history-time">${item.time.toLocaleTimeString()}</div>
+              <div class="history-summary">${item.summary}</div>
+            </div>
+          `).join('');
+        }
+        
+        showLoading() {
+          const loading = document.getElementById('loading-indicator');
+          if (loading) {
+            loading.classList.add('visible');
+          }
+        }
+        
+        hideLoading() {
+          const loading = document.getElementById('loading-indicator');
+          if (loading) {
+            loading.classList.remove('visible');
+          }
+        }
+        
+        showCaptureIndicator() {
+          const indicator = document.getElementById('capture-indicator');
+          if (indicator) {
+            indicator.classList.add('active');
+          }
+        }
+        
+        hideCaptureIndicator() {
+          const indicator = document.getElementById('capture-indicator');
+          if (indicator) {
+            indicator.classList.remove('active');
+          }
+        }
+        
+        async closeOverlay() {
+          try {
+            await window.electronAPI.overlay.close();
+          } catch (error) {
+            console.error('Failed to close overlay:', error);
+          }
+        }
+        
+        async stopMonitoring() {
+          try {
+            await window.electronAPI.overlay.stopInterval();
+            await window.electronAPI.overlay.close();
+          } catch (error) {
+            console.error('Failed to stop monitoring:', error);
+          }
+        }
+        
+        async manualCapture() {
+          try {
+            this.showLoading();
+            this.showCaptureIndicator();
+            
+            const response = await window.electronAPI.screenshot.capture();
+            if (response.success && response.dataUrl) {
+              // Simulate the capture process
+              setTimeout(() => {
+                this.hideLoading();
+                this.hideCaptureIndicator();
+              }, 1000);
+            }
+          } catch (error) {
+            console.error('Failed to capture screenshot:', error);
+            this.hideLoading();
+            this.hideCaptureIndicator();
+          }
+        }
+      }
+      
+      // Initialize when DOM is ready
+      document.addEventListener('DOMContentLoaded', () => {
+        new TransparentOverlay();
+      });
+    </script>
+  </body>
+</html>

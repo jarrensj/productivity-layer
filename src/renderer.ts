@@ -73,6 +73,24 @@ interface ElectronAPI {
   app: {
     clearResetApp: () => Promise<{success: boolean; error?: string}>;
   };
+  screenshot: {
+    capture: () => Promise<{success: boolean; dataUrl?: string; error?: string}>;
+    summarize: (imageData: string) => Promise<{success: boolean; result?: string; error?: string}>;
+  };
+  overlay: {
+    create: () => Promise<{success: boolean}>;
+    close: () => Promise<void>;
+    startRecording: (interval: number) => Promise<{success: boolean}>;
+    stopInterval: () => Promise<{success: boolean}>;
+    closeWindow: () => Promise<{success: boolean}>;
+    onNewScreenshot: (callback: (dataUrl: string) => void) => void;
+    onNewSummary: (callback: (summary: string) => void) => void;
+    onOverlaySummary: (callback: (summary: string) => void) => void;
+  };
+  email: {
+    sendSummary: (summaryData: any, emailConfig: any) => Promise<{success: boolean; message?: string; error?: string; matchedKeywords?: string[]}>;
+    saveConfig: (config: any) => Promise<{success: boolean; message?: string; error?: string}>;
+  };
 }
 
 declare global {
@@ -401,6 +419,22 @@ class ClipboardManager {
       setTimeout(() => this.ensureActiveTab(), 50);
     });
 
+    document.getElementById('summarize-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('summarize')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('summarize', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
+    });
+
     document.getElementById('timer-tab-toggle')?.addEventListener('change', (e) => {
       const toggle = e.target as HTMLInputElement;
       const isEnabled = toggle.checked;
@@ -697,12 +731,13 @@ class ClipboardManager {
     const tasksEnabled = (document.getElementById('tasks-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const chatEnabled = (document.getElementById('chat-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const imagesEnabled = (document.getElementById('images-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    const summarizeEnabled = (document.getElementById('summarize-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const timerEnabled = (document.getElementById('timer-tab-toggle') as HTMLInputElement)?.checked ?? true;
     
     // Get current tab order from localStorage or use default
     const stored = localStorage.getItem('tabPreferences');
     const currentPreferences = stored ? JSON.parse(stored) : {};
-    const defaultOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer'];
+    const defaultOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize', 'timer'];
     
     const preferences = {
       clipboardTab: clipboardEnabled,
@@ -711,6 +746,7 @@ class ClipboardManager {
       tasksTab: tasksEnabled,
       chatTab: chatEnabled,
       imagesTab: imagesEnabled,
+      summarizeTab: summarizeEnabled,
       timerTab: timerEnabled,
       tabOrder: currentPreferences.tabOrder || defaultOrder
     };
@@ -725,15 +761,16 @@ class ClipboardManager {
   private loadTabPreferences() {
     try {
       const stored = localStorage.getItem('tabPreferences');
-      let preferences = stored ? JSON.parse(stored) : { 
+      const preferences = stored ? JSON.parse(stored) : { 
         clipboardTab: true, 
         grammarTab: true, 
         linksTab: true, 
         tasksTab: true, 
         chatTab: true,
         imagesTab: true,
+        summarizeTab: true,
         timerTab: true,
-        tabOrder: ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer']
+        tabOrder: ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize', 'timer']
       };
 
       // Migration: Add Images and Timer tabs if they don't exist in stored preferences
@@ -759,6 +796,19 @@ class ClipboardManager {
           needsUpdate = true;
         }
         
+        // Add summarizeTab if missing
+        if (preferences.summarizeTab === undefined) {
+          preferences.summarizeTab = true;
+          needsUpdate = true;
+        }
+        
+        // Add 'summarize' to tabOrder if missing
+        if (!preferences.tabOrder || !preferences.tabOrder.includes('summarize')) {
+          preferences.tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
+          preferences.tabOrder.push('summarize');
+          needsUpdate = true;
+        }
+        
         // Add 'timer' to tabOrder if missing
         if (!preferences.tabOrder || !preferences.tabOrder.includes('timer')) {
           preferences.tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer'];
@@ -774,18 +824,20 @@ class ClipboardManager {
         }
       }
       
-      // Apply tab order first
-      if (preferences.tabOrder) {
-        this.applyTabOrder(preferences.tabOrder);
-      }
-      
-      // Update toggle states
+      // Apply tab order first (with a small delay to ensure DOM is ready)
+      setTimeout(() => {
+        if (preferences.tabOrder) {
+          this.applyTabOrder(preferences.tabOrder);
+        }
+        
+        // Update toggle states
       const clipboardToggle = document.getElementById('clipboard-tab-toggle') as HTMLInputElement;
       const grammarToggle = document.getElementById('grammar-tab-toggle') as HTMLInputElement;
       const linksToggle = document.getElementById('links-tab-toggle') as HTMLInputElement;
       const tasksToggle = document.getElementById('tasks-tab-toggle') as HTMLInputElement;
       const chatToggle = document.getElementById('chat-tab-toggle') as HTMLInputElement;
       const imagesToggle = document.getElementById('images-tab-toggle') as HTMLInputElement;
+      const summarizeToggle = document.getElementById('summarize-tab-toggle') as HTMLInputElement;
       const timerToggle = document.getElementById('timer-tab-toggle') as HTMLInputElement;
       
       if (clipboardToggle) {
@@ -818,18 +870,25 @@ class ClipboardManager {
         this.toggleTabVisibility('images', preferences.imagesTab ?? true);
       }
       
+      if (summarizeToggle) {
+        summarizeToggle.checked = preferences.summarizeTab ?? true;
+        // Always show the summarize tab by default
+        this.toggleTabVisibility('summarize', true);
+      }
+      
       if (timerToggle) {
         timerToggle.checked = preferences.timerTab ?? true;
         this.toggleTabVisibility('timer', preferences.timerTab ?? true);
       }
       
-      // Initialize tab order UI in settings
-      this.initializeTabOrderUI(preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer']);
-      
-      // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
-      setTimeout(() => {
-        this.ensureActiveTab();
-      }, 100);
+        // Initialize tab order UI in settings
+        this.initializeTabOrderUI(preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize', 'timer']);
+        
+        // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
+        setTimeout(() => {
+          this.ensureActiveTab();
+        }, 100);
+      }, 50);
     } catch (error) {
       console.error('Failed to load tab preferences:', error);
     }
@@ -862,8 +921,9 @@ class ClipboardManager {
     const tasksToggle = document.getElementById('tasks-tab-toggle') as HTMLInputElement;
     const chatToggle = document.getElementById('chat-tab-toggle') as HTMLInputElement;
     const imagesToggle = document.getElementById('images-tab-toggle') as HTMLInputElement;
+    const summarizeToggle = document.getElementById('summarize-tab-toggle') as HTMLInputElement;
     
-    if (!clipboardToggle || !grammarToggle || !linksToggle || !tasksToggle || !chatToggle || !imagesToggle) return false;
+    if (!clipboardToggle || !grammarToggle || !linksToggle || !tasksToggle || !chatToggle || !imagesToggle || !summarizeToggle) return false;
     
     // Count how many tabs would remain enabled after disabling this one
     const remainingTabs = [];
@@ -873,6 +933,7 @@ class ClipboardManager {
     if (tabName !== 'tasks' && tasksToggle.checked) remainingTabs.push('tasks');
     if (tabName !== 'chat' && chatToggle.checked) remainingTabs.push('chat');
     if (tabName !== 'images' && imagesToggle.checked) remainingTabs.push('images');
+    if (tabName !== 'summarize' && summarizeToggle.checked) remainingTabs.push('summarize');
     
     // Allow disabling only if at least one tab would remain
     return remainingTabs.length > 0;
@@ -976,19 +1037,16 @@ class ClipboardManager {
         if (timerTabToggle) {
           timerTabToggle.insertAdjacentHTML('afterend', tabOrderHTML);
           tabOrderContainer = document.getElementById('tab-order-container');
-          console.log('Tab order container created after Timer Tab toggle');
         } else {
           // Fallback: insert at the end of the interface section
           interfaceSection.insertAdjacentHTML('beforeend', tabOrderHTML);
           tabOrderContainer = document.getElementById('tab-order-container');
-          console.log('Tab order container created as fallback');
         }
       }
 
       if (tabOrderContainer) {
         this.renderTabOrderList(tabOrder);
         this.setupTabOrderDragAndDrop();
-        console.log('Tab order UI initialized with order:', tabOrder);
       } else {
         console.error('Failed to create tab order container');
       }
@@ -1009,6 +1067,7 @@ class ClipboardManager {
       tasks: 'Tasks',
       chat: 'Chat',
       images: 'Images',
+      summarize: 'Summarize',
       timer: 'Timer'
     };
 
@@ -1020,7 +1079,6 @@ class ClipboardManager {
     `).join('');
 
     tabOrderList.innerHTML = tabOrderHTML;
-    console.log('Rendered tab order list with HTML:', tabOrderHTML);
   }
 
   private setupTabOrderDragAndDrop() {
@@ -2116,6 +2174,471 @@ class ImagesManager {
   }
 }
 
+// Summarize Manager Class
+class SummarizeManager {
+  private overlayButton: HTMLElement;
+  private recordingButton: HTMLElement;
+  private intervalMinutesInput: HTMLInputElement;
+  private intervalSecondsInput: HTMLInputElement;
+  private overlaySummaryContainer: HTMLElement;
+  private resultsContainer: HTMLElement;
+  private isOverlayActive = false;
+  private isRecordingActive = false;
+  private currentInterval = 300; // Default 5 minutes in seconds
+  
+  // Email configuration elements
+  private emailToggle: HTMLInputElement;
+  private emailRecipientInput: HTMLInputElement;
+  private emailKeywordsTextarea: HTMLTextAreaElement;
+  private saveEmailConfigButton: HTMLElement;
+  private testEmailButton: HTMLElement;
+  private emailConfigSection: HTMLElement;
+  
+  // Email configuration state
+  private emailConfig = {
+    enabled: false,
+    recipientEmail: '',
+    keywords: [] as string[]
+  };
+
+  constructor() {
+    this.overlayButton = document.getElementById('start-overlay')!;
+    this.recordingButton = document.getElementById('start-recording')!;
+    this.intervalMinutesInput = document.getElementById('interval-minutes') as HTMLInputElement;
+    this.intervalSecondsInput = document.getElementById('interval-seconds') as HTMLInputElement;
+    this.overlaySummaryContainer = document.getElementById('overlay-summary')!;
+    this.resultsContainer = document.getElementById('overlay-summary')!; // Use same container
+    
+    // Email configuration elements
+    this.emailToggle = document.getElementById('email-notifications-toggle') as HTMLInputElement;
+    this.emailRecipientInput = document.getElementById('email-recipient') as HTMLInputElement;
+    this.emailKeywordsTextarea = document.getElementById('email-keywords') as HTMLTextAreaElement;
+    this.saveEmailConfigButton = document.getElementById('save-email-config')!;
+    this.testEmailButton = document.getElementById('test-email')!;
+    this.emailConfigSection = document.querySelector('.form-section:last-child') as HTMLElement;
+    
+    this.init();
+  }
+
+  private init() {
+    this.setupEventListeners();
+    this.setupOverlayStateListener();
+    this.loadEmailConfiguration();
+  }
+
+  private setupEventListeners() {
+    // Overlay button
+    this.overlayButton.addEventListener('click', () => {
+      this.toggleOverlay();
+    });
+
+    // Recording button
+    this.recordingButton.addEventListener('click', () => {
+      if (this.isRecordingActive) {
+        this.stopRecording();
+      } else {
+        this.startRecording();
+      }
+    });
+
+    // Interval inputs
+    this.intervalMinutesInput.addEventListener('input', () => {
+      this.updateCurrentInterval();
+    });
+
+    this.intervalSecondsInput.addEventListener('input', () => {
+      this.updateCurrentInterval();
+    });
+
+    // Load saved interval preference
+    this.loadIntervalPreference();
+
+    // Email configuration event listeners
+    this.emailToggle.addEventListener('change', () => {
+      this.toggleEmailNotifications();
+    });
+
+    this.saveEmailConfigButton.addEventListener('click', () => {
+      this.saveEmailConfiguration();
+    });
+
+    this.testEmailButton.addEventListener('click', () => {
+      this.sendTestEmail();
+    });
+
+    // Auto-save email config when inputs change
+    this.emailRecipientInput.addEventListener('blur', () => {
+      this.saveEmailConfiguration();
+    });
+
+    this.emailKeywordsTextarea.addEventListener('blur', () => {
+      this.saveEmailConfiguration();
+    });
+  }
+
+  private setupOverlayStateListener() {
+    // Listen for when the overlay window is closed externally
+    // This helps keep the button state in sync
+    if (window.electronAPI) {
+      // Listen for overlay summaries from the main process
+      window.electronAPI.overlay.onOverlaySummary((summary) => {
+        this.updateOverlaySummary(summary);
+      });
+      
+      // We'll use a simple approach - check overlay state periodically
+      // In a more sophisticated implementation, you'd use IPC events
+      setInterval(() => {
+        this.checkOverlayState();
+      }, 2000); // Check every 2 seconds
+    }
+  }
+
+  private async checkOverlayState() {
+    // This is a simple way to check if overlay is still active
+    // In a production app, you'd want proper IPC communication
+    // For now, we'll assume the overlay is still active if the button shows "Stop Overlay"
+    if (this.overlayButton.textContent === 'Stop Overlay' && !this.isOverlayActive) {
+      this.isOverlayActive = true;
+    } else if (this.overlayButton.textContent === 'Start Overlay' && this.isOverlayActive) {
+      this.isOverlayActive = false;
+    }
+  }
+
+  private async updateOverlaySummary(summary: string) {
+    if (this.overlaySummaryContainer) {
+      this.overlaySummaryContainer.textContent = summary;
+      this.overlaySummaryContainer.className = 'overlay-summary success';
+      
+      // Show a brief success message
+      this.showMessage('New overlay summary received!', 'success');
+      
+      // Automatically check if email should be sent based on keywords
+      await this.checkAndSendEmail(summary);
+    }
+  }
+
+  private async checkAndSendEmail(summary: string) {
+    try {
+      const summaryData = {
+        summary: summary,
+        timestamp: new Date().toISOString(),
+        keywords: this.emailConfig.keywords
+      };
+
+      const result = await window.electronAPI.email.sendSummary(summaryData, this.emailConfig);
+      
+      if (result.success && result.matchedKeywords && result.matchedKeywords.length > 0) {
+        this.showMessage(`Email sent! Matched keywords: ${result.matchedKeywords.join(', ')}`, 'success');
+      } else if (result.success && !result.matchedKeywords?.length) {
+        // Summary doesn't match any keywords, no email sent
+      } else {
+        console.error('Failed to send email:', result.error);
+      }
+    } catch (error) {
+      console.error('Error checking keywords and sending email:', error);
+    }
+  }
+
+
+  private async toggleOverlay() {
+    try {
+      if (this.isOverlayActive) {
+        // Stop overlay and recording
+        this.overlayButton.textContent = 'Stopping...';
+        this.overlayButton.setAttribute('disabled', 'true');
+
+        // Stop recording if it's active
+        if (this.isRecordingActive) {
+          await window.electronAPI.overlay.stopInterval();
+          this.isRecordingActive = false;
+          this.recordingButton.textContent = 'Start Recording';
+          this.recordingButton.classList.remove('recording');
+          this.intervalMinutesInput.removeAttribute('disabled');
+          this.intervalSecondsInput.removeAttribute('disabled');
+        }
+
+        await window.electronAPI.overlay.closeWindow();
+        
+        this.isOverlayActive = false;
+        this.overlayButton.textContent = 'Start Overlay';
+        this.overlayButton.classList.remove('active');
+        this.overlayButton.removeAttribute('disabled');
+        this.updateOverlaySummary('No overlay summaries yet. Start the overlay to begin monitoring.');
+        this.showMessage('Overlay and recording stopped successfully', 'success');
+      } else {
+        // Start overlay
+        this.overlayButton.textContent = 'Starting...';
+        this.overlayButton.setAttribute('disabled', 'true');
+
+        const result = await window.electronAPI.overlay.create();
+        
+        if (result.success) {
+          this.isOverlayActive = true;
+          this.overlayButton.textContent = 'Stop Overlay';
+          this.overlayButton.classList.add('active');
+          this.overlayButton.removeAttribute('disabled');
+          this.updateOverlaySummary('Overlay window opened. Start recording to begin monitoring.');
+          this.showMessage('Overlay started! You can now start screen recording.', 'success');
+        } else {
+          this.showMessage('Failed to start overlay', 'error');
+          this.overlayButton.textContent = 'Start Overlay';
+          this.overlayButton.removeAttribute('disabled');
+        }
+      }
+    } catch (error) {
+      console.error('Overlay toggle error:', error);
+      this.showMessage('Failed to toggle overlay', 'error');
+      this.isOverlayActive = false;
+      this.overlayButton.textContent = 'Start Overlay';
+      this.overlayButton.classList.remove('active');
+      this.overlayButton.removeAttribute('disabled');
+    }
+  }
+
+  private async startRecording() {
+    try {
+      if (!this.isOverlayActive) {
+        this.showMessage('Please start the overlay window first', 'warning');
+        return;
+      }
+
+      this.recordingButton.textContent = 'Starting...';
+      this.recordingButton.setAttribute('disabled', 'true');
+
+      const result = await window.electronAPI.overlay.startRecording(this.currentInterval);
+      
+      if (result.success) {
+        this.isRecordingActive = true;
+        this.recordingButton.textContent = 'Stop Recording';
+        this.recordingButton.classList.add('recording');
+        this.recordingButton.removeAttribute('disabled');
+        this.intervalMinutesInput.setAttribute('disabled', 'true');
+        this.intervalSecondsInput.setAttribute('disabled', 'true');
+        this.updateOverlaySummary('Recording started. Waiting for first summary...');
+        this.showMessage(`Screen recording started! Screenshots will be taken every ${this.formatInterval(this.currentInterval)}.`, 'success');
+      } else {
+        this.showMessage('Failed to start recording', 'error');
+        this.recordingButton.textContent = 'Start Recording';
+        this.recordingButton.removeAttribute('disabled');
+      }
+    } catch (error) {
+      console.error('Recording start error:', error);
+      this.showMessage('Failed to start recording', 'error');
+      this.recordingButton.textContent = 'Start Recording';
+      this.recordingButton.removeAttribute('disabled');
+    }
+  }
+
+  private async stopRecording() {
+    try {
+      this.recordingButton.textContent = 'Stopping...';
+      this.recordingButton.setAttribute('disabled', 'true');
+
+      await window.electronAPI.overlay.stopInterval();
+      
+      this.isRecordingActive = false;
+      this.recordingButton.textContent = 'Start Recording';
+      this.recordingButton.classList.remove('recording');
+      this.recordingButton.removeAttribute('disabled');
+      this.intervalMinutesInput.removeAttribute('disabled');
+      this.intervalSecondsInput.removeAttribute('disabled');
+      this.updateOverlaySummary('Recording stopped. Start recording to resume monitoring.');
+      this.showMessage('Screen recording stopped', 'success');
+    } catch (error) {
+      console.error('Recording stop error:', error);
+      this.showMessage('Failed to stop recording', 'error');
+      this.recordingButton.textContent = 'Stop Recording';
+      this.recordingButton.removeAttribute('disabled');
+    }
+  }
+
+  private updateCurrentInterval() {
+    const minutes = parseInt(this.intervalMinutesInput.value) || 0;
+    const seconds = parseInt(this.intervalSecondsInput.value) || 0;
+    this.currentInterval = minutes * 60 + seconds;
+    
+    // Ensure minimum of 30 seconds
+    if (this.currentInterval < 30) {
+      this.currentInterval = 30;
+      this.intervalMinutesInput.value = '0';
+      this.intervalSecondsInput.value = '30';
+    }
+    
+    this.saveIntervalPreference();
+  }
+
+  private formatInterval(seconds: number): string {
+    if (seconds < 60) {
+      return `${seconds} seconds`;
+    } else if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    } else {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      if (minutes === 0) {
+        return `${hours} hour${hours !== 1 ? 's' : ''}`;
+      } else {
+        return `${hours}h ${minutes}m`;
+      }
+    }
+  }
+
+  private loadIntervalPreference() {
+    try {
+      const stored = localStorage.getItem('screenshotInterval');
+      if (stored) {
+        const interval = parseInt(stored);
+        if (interval >= 30 && interval <= 600) {
+          this.currentInterval = interval;
+          const minutes = Math.floor(interval / 60);
+          const seconds = interval % 60;
+          this.intervalMinutesInput.value = minutes.toString();
+          this.intervalSecondsInput.value = seconds.toString();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load interval preference:', error);
+    }
+  }
+
+  private saveIntervalPreference() {
+    try {
+      localStorage.setItem('screenshotInterval', this.currentInterval.toString());
+    } catch (error) {
+      console.error('Failed to save interval preference:', error);
+    }
+  }
+
+  private showMessage(message: string, type: 'success' | 'warning' | 'error') {
+    Utils.showMessage(message, type);
+  }
+
+  // Email configuration methods
+  private toggleEmailNotifications() {
+    this.emailConfig.enabled = this.emailToggle.checked;
+    
+    // Update UI state
+    if (this.emailConfig.enabled) {
+      this.emailConfigSection.classList.remove('disabled');
+      this.emailRecipientInput.removeAttribute('disabled');
+      this.emailKeywordsTextarea.removeAttribute('disabled');
+    } else {
+      this.emailConfigSection.classList.add('disabled');
+      this.emailRecipientInput.setAttribute('disabled', 'true');
+      this.emailKeywordsTextarea.setAttribute('disabled', 'true');
+    }
+    
+    this.saveEmailConfiguration();
+  }
+
+  private async saveEmailConfiguration() {
+    try {
+      // Update email config from UI
+      this.emailConfig.enabled = this.emailToggle.checked;
+      this.emailConfig.recipientEmail = this.emailRecipientInput.value.trim();
+      
+      // Parse keywords from textarea
+      const keywordsText = this.emailKeywordsTextarea.value.trim();
+      this.emailConfig.keywords = keywordsText 
+        ? keywordsText.split(',').map(keyword => keyword.trim()).filter(keyword => keyword.length > 0)
+        : [];
+
+      // Validate configuration
+      if (this.emailConfig.enabled) {
+        if (!this.emailConfig.recipientEmail) {
+          this.showMessage('Please enter a recipient email address', 'warning');
+          return;
+        }
+        
+        if (!this.emailConfig.recipientEmail.includes('@')) {
+          this.showMessage('Please enter a valid email address', 'error');
+          return;
+        }
+        
+        if (this.emailConfig.keywords.length === 0) {
+          this.showMessage('Please enter at least one keyword', 'warning');
+          return;
+        }
+      }
+
+      // Save to localStorage
+      localStorage.setItem('emailConfiguration', JSON.stringify(this.emailConfig));
+      
+      this.showMessage('Email configuration saved successfully', 'success');
+    } catch (error) {
+      console.error('Failed to save email configuration:', error);
+      this.showMessage('Failed to save email configuration', 'error');
+    }
+  }
+
+  private loadEmailConfiguration() {
+    try {
+      const saved = localStorage.getItem('emailConfiguration');
+      if (saved) {
+        this.emailConfig = JSON.parse(saved);
+        
+        // Update UI elements
+        this.emailToggle.checked = this.emailConfig.enabled;
+        this.emailRecipientInput.value = this.emailConfig.recipientEmail;
+        this.emailKeywordsTextarea.value = this.emailConfig.keywords.join(', ');
+        
+        // Update UI state
+        this.toggleEmailNotifications();
+      }
+    } catch (error) {
+      console.error('Failed to load email configuration:', error);
+    }
+  }
+
+  private async sendTestEmail() {
+    try {
+      if (!this.emailConfig.enabled) {
+        this.showMessage('Please enable email notifications first', 'warning');
+        return;
+      }
+
+      if (!this.emailConfig.recipientEmail) {
+        this.showMessage('Please enter a recipient email address', 'warning');
+        return;
+      }
+
+      if (this.emailConfig.keywords.length === 0) {
+        this.showMessage('Please enter at least one keyword', 'warning');
+        return;
+      }
+
+      this.testEmailButton.textContent = 'Sending...';
+      this.testEmailButton.setAttribute('disabled', 'true');
+
+      // Create a test summary with a keyword to ensure it gets sent
+      const testSummary = `This is a test summary containing the keyword "${this.emailConfig.keywords[0]}" to verify email functionality is working correctly.`;
+      
+      const summaryData = {
+        summary: testSummary,
+        timestamp: new Date().toISOString(),
+        keywords: this.emailConfig.keywords
+      };
+
+      const result = await window.electronAPI.email.sendSummary(summaryData, this.emailConfig);
+      
+      if (result.success && result.matchedKeywords && result.matchedKeywords.length > 0) {
+        this.showMessage(`Test email sent successfully! Matched keywords: ${result.matchedKeywords.join(', ')}`, 'success');
+      } else if (result.success && !result.matchedKeywords?.length) {
+        this.showMessage('Test email not sent - no keywords matched', 'warning');
+      } else {
+        this.showMessage(`Failed to send test email: ${result.error || 'Unknown error'}`, 'error');
+      }
+    } catch (error) {
+      console.error('Failed to send test email:', error);
+      this.showMessage('Failed to send test email', 'error');
+    } finally {
+      this.testEmailButton.textContent = 'Send Test Email';
+      this.testEmailButton.removeAttribute('disabled');
+    }
+  }
+}
+
 // Timer Manager Class
 class TimerManager {
   private timerDisplay: HTMLElement;
@@ -2458,6 +2981,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize images manager
   new ImagesManager();
+  
+  // Initialize summarize manager
+  new SummarizeManager();
   
   // Initialize timer manager
   new TimerManager();

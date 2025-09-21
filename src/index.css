@@ -61,6 +61,7 @@ body {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   background: rgba(255, 255, 255, 0.05);
   -webkit-app-region: no-drag;
+  width: 100%;
 }
 
 .tab-btn {
@@ -68,12 +69,18 @@ body {
   border: none;
   padding: 12px 20px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 11px;
   color: #666;
   border-bottom: 2px solid transparent;
   transition: all 0.2s ease;
   flex: 1;
   font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tab-btn:hover {
@@ -773,6 +780,24 @@ body {
 
 .btn-danger:hover {
   background: rgba(255, 59, 48, 0.2);
+}
+
+.btn-success {
+  background: #34C759;
+  color: white;
+}
+
+.btn-success:hover {
+  background: #28A745;
+}
+
+.btn-success.active {
+  background: #DC3545;
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
+}
+
+.btn-success.active:hover {
+  background: #C82333;
 }
 
 .btn-small {
@@ -1625,6 +1650,7 @@ input:checked + .slider:before {
 .tab-order-item[data-tab="tasks"],
 .tab-order-item[data-tab="chat"],
 .tab-order-item[data-tab="images"],
+.tap-order-item[data-tab="summarize"],
 .tab-order-item[data-tab="timer"] {
   background: rgba(33, 150, 243, 0.4);
   border-color: rgba(33, 150, 243, 0.7);
@@ -1636,6 +1662,7 @@ input:checked + .slider:before {
 .tab-order-item[data-tab="tasks"]:hover,
 .tab-order-item[data-tab="chat"]:hover,
 .tab-order-item[data-tab="images"]:hover,
+.tab-order-item[data-tab="summarize"]:hover,
 .tab-order-item[data-tab="timer"]:hover {
   background: rgba(33, 150, 243, 0.5);
   border-color: rgba(33, 150, 243, 0.9);
@@ -1701,4 +1728,488 @@ input:checked + .slider:before {
   height: 2px;
   background: #007acc;
   border-radius: 1px;
+}
+
+/* Summarize Tab Styles */
+.summarize-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  -webkit-app-region: no-drag;
+}
+
+
+.summarize-info {
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.screenshot-container {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.screenshot-container img {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  object-fit: contain;
+}
+
+.screenshot-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* Overlay Summary Section */
+.overlay-summary-section {
+  margin: 16px 0;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.overlay-summary-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.overlay-summary {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  padding: 12px;
+  min-height: 150px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #333;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.overlay-summary.loading {
+  background: rgba(74, 144, 226, 0.1);
+  border-color: rgba(74, 144, 226, 0.3);
+  color: #4A90E2;
+}
+
+.overlay-summary.error {
+  background: rgba(255, 59, 48, 0.1);
+  border-color: rgba(255, 59, 48, 0.3);
+  color: #FF3B30;
+}
+
+.overlay-summary.success {
+  background: rgba(52, 199, 89, 0.1);
+  border-color: rgba(52, 199, 89, 0.3);
+  color: #34C759;
+}
+
+.summarize-results {
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  min-height: 100px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.summarize-results.loading {
+  color: #666;
+  font-style: italic;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.summarize-results.success {
+  color: #333;
+}
+
+.summarize-results.error {
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
+  border-color: rgba(220, 53, 69, 0.2);
+}
+
+.summarize-results.default {
+  color: #999;
+  text-align: center;
+  font-style: italic;
+}
+
+/* Main Controls Section */
+.main-controls-section {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.control-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.control-buttons .btn {
+  flex: 1;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control-buttons .btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.control-buttons .btn:active {
+  transform: translateY(0);
+}
+
+/* Recording button color states */
+.btn.btn-primary {
+  background: #4A90E2;
+  color: white;
+}
+
+.btn.btn-primary:hover {
+  background: #357ABD;
+}
+
+.btn.btn-primary.recording {
+  background: #FF3B30;
+  color: white;
+}
+
+.btn.btn-primary.recording:hover {
+  background: #E6342A;
+}
+
+.btn.btn-success.recording {
+  background: #FF3B30;
+  color: white;
+}
+
+.btn.btn-success.recording:hover {
+  background: #E6342A;
+}
+
+.interval-setting {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.interval-setting label {
+  font-weight: 500;
+  color: #333;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.interval-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.interval-input {
+  width: 50px;
+  padding: 4px 6px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.8);
+  outline: none;
+}
+
+.interval-input:focus {
+  border-color: #4A90E2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.interval-label {
+  font-size: 11px;
+  color: #666;
+  font-weight: 500;
+  min-width: 25px;
+}
+
+.interval-description {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Summary section with proper spacing */
+.overlay-summary-section {
+  margin-top: 0px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  min-height: 200px;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.overlay-summary-section h4 {
+  margin: 0 0 12px 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.overlay-summary {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 6px;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  min-height: 120px;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Responsive design for tabs */
+@media (max-width: 480px) {
+  .tab-btn {
+    font-size: 10px;
+    padding: 8px 4px;
+  }
+}
+
+/* Handle many tabs */
+@media (max-width: 400px) {
+  .tab-btn {
+    font-size: 9px;
+    padding: 6px 2px;
+  }
+}
+
+/* Summarize Tab Scrolling */
+.summarize-content {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 8px;
+  margin-right: -8px;
+}
+
+.summarize-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.summarize-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.summarize-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.summarize-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Summarize Settings Form Styles */
+.summarize-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.form-section {
+  padding: 16px;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.form-section h4 {
+  margin: 0 0 16px 0;
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.email-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.email-toggle-label {
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.email-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.email-input-group label {
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.email-input {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #374151;
+  background-color: white;
+  transition: border-color 0.2s ease;
+}
+
+.email-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.email-input:disabled {
+  background-color: #f9fafb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.keywords-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.keywords-input-group label {
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.keywords-textarea {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #374151;
+  background-color: white;
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+  transition: border-color 0.2s ease;
+}
+
+.keywords-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.keywords-textarea:disabled {
+  background-color: #f9fafb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.keywords-help {
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.email-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.email-actions .btn {
+  flex: 1;
+  min-width: 120px;
+}
+
+/* Email status indicators */
+.email-status {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.email-status.success {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.email-status.error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+.email-status.warning {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* Disabled state for email controls */
+.form-section.disabled .email-input,
+.form-section.disabled .keywords-textarea {
+  background-color: #f9fafb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.form-section.disabled .email-toggle-label {
+  color: #9ca3af;
 }
