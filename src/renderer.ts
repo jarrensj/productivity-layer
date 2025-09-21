@@ -361,6 +361,22 @@ class ClipboardManager {
       setTimeout(() => this.ensureActiveTab(), 50);
     });
 
+    document.getElementById('timer-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('timer')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('timer', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
+    });
+
     // Opacity slider control
     document.getElementById('opacity-slider')?.addEventListener('input', (e) => {
       const slider = e.target as HTMLInputElement;
@@ -641,11 +657,12 @@ class ClipboardManager {
     const tasksEnabled = (document.getElementById('tasks-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const chatEnabled = (document.getElementById('chat-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const imagesEnabled = (document.getElementById('images-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    const timerEnabled = (document.getElementById('timer-tab-toggle') as HTMLInputElement)?.checked ?? true;
     
     // Get current tab order from localStorage or use default
     const stored = localStorage.getItem('tabPreferences');
     const currentPreferences = stored ? JSON.parse(stored) : {};
-    const defaultOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
+    const defaultOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer'];
     
     const preferences = {
       clipboardTab: clipboardEnabled,
@@ -654,6 +671,7 @@ class ClipboardManager {
       tasksTab: tasksEnabled,
       chatTab: chatEnabled,
       imagesTab: imagesEnabled,
+      timerTab: timerEnabled,
       tabOrder: currentPreferences.tabOrder || defaultOrder
     };
     
@@ -674,10 +692,11 @@ class ClipboardManager {
         tasksTab: true, 
         chatTab: true,
         imagesTab: true,
-        tabOrder: ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images']
+        timerTab: true,
+        tabOrder: ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer']
       };
 
-      // Migration: Add Images tab if it doesn't exist in stored preferences
+      // Migration: Add Images and Timer tabs if they don't exist in stored preferences
       if (stored) {
         let needsUpdate = false;
         
@@ -687,10 +706,23 @@ class ClipboardManager {
           needsUpdate = true;
         }
         
+        // Add timerTab if missing
+        if (preferences.timerTab === undefined) {
+          preferences.timerTab = true;
+          needsUpdate = true;
+        }
+        
         // Add 'images' to tabOrder if missing
         if (!preferences.tabOrder || !preferences.tabOrder.includes('images')) {
           preferences.tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat'];
           preferences.tabOrder.push('images');
+          needsUpdate = true;
+        }
+        
+        // Add 'timer' to tabOrder if missing
+        if (!preferences.tabOrder || !preferences.tabOrder.includes('timer')) {
+          preferences.tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
+          preferences.tabOrder.push('timer');
           needsUpdate = true;
         }
         
@@ -712,6 +744,7 @@ class ClipboardManager {
       const tasksToggle = document.getElementById('tasks-tab-toggle') as HTMLInputElement;
       const chatToggle = document.getElementById('chat-tab-toggle') as HTMLInputElement;
       const imagesToggle = document.getElementById('images-tab-toggle') as HTMLInputElement;
+      const timerToggle = document.getElementById('timer-tab-toggle') as HTMLInputElement;
       
       if (clipboardToggle) {
         clipboardToggle.checked = preferences.clipboardTab;
@@ -743,8 +776,13 @@ class ClipboardManager {
         this.toggleTabVisibility('images', preferences.imagesTab ?? true);
       }
       
+      if (timerToggle) {
+        timerToggle.checked = preferences.timerTab ?? true;
+        this.toggleTabVisibility('timer', preferences.timerTab ?? true);
+      }
+      
       // Initialize tab order UI in settings
-      this.initializeTabOrderUI(preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images']);
+      this.initializeTabOrderUI(preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'timer']);
       
       // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
       setTimeout(() => {
@@ -928,7 +966,8 @@ class ClipboardManager {
       links: 'Favorite Links',
       tasks: 'Tasks',
       chat: 'Chat',
-      images: 'Images'
+      images: 'Images',
+      timer: 'Timer'
     };
 
     const tabOrderHTML = tabOrder.map(tabName => `
