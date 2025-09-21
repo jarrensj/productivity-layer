@@ -222,7 +222,6 @@ const startScreenshotInterval = (intervalSeconds = 300) => {
     takeScreenshotForOverlay();
   }, intervalMs);
   
-  console.log(`Screenshot interval started - taking screenshots every ${intervalSeconds} seconds (${Math.floor(intervalSeconds / 60)} minutes)`);
 };
 
 // Stop screenshot interval
@@ -230,7 +229,6 @@ const stopScreenshotInterval = () => {
   if (screenshotInterval) {
     clearInterval(screenshotInterval);
     screenshotInterval = null;
-    console.log('Screenshot interval stopped');
   }
 };
 
@@ -238,7 +236,6 @@ const stopScreenshotInterval = () => {
 const takeScreenshotForOverlay = async () => {
   try {
     if (!overlayWindow || overlayWindow.isDestroyed()) {
-      console.log('Overlay window not available for screenshot');
       return;
     }
 
@@ -255,12 +252,6 @@ const takeScreenshotForOverlay = async () => {
 
     // Get all available screens
     const allDisplays = screen.getAllDisplays();
-    console.log('All displays:', allDisplays.map(d => ({ 
-      id: d.id, 
-      bounds: d.bounds, 
-      workArea: d.workArea,
-      scaleFactor: d.scaleFactor 
-    })));
 
     // Find which display the overlay is on
     const overlayDisplay = allDisplays.find(display => {
@@ -271,12 +262,6 @@ const takeScreenshotForOverlay = async () => {
              bounds.y < displayBounds.y + displayBounds.height;
     });
 
-    console.log('Overlay display found:', overlayDisplay ? {
-      id: overlayDisplay.id,
-      bounds: overlayDisplay.bounds,
-      workArea: overlayDisplay.workArea,
-      scaleFactor: overlayDisplay.scaleFactor
-    } : 'Not found');
 
     // Use desktopCapturer to get the screen, but with better source selection
     const sources = await desktopCapturer.getSources({
@@ -285,7 +270,6 @@ const takeScreenshotForOverlay = async () => {
     });
 
     if (sources.length === 0) {
-      console.log('No screen sources available for overlay screenshot');
       // Restore overlay visibility
       if (wasVisible) {
         overlayWindow.show();
@@ -293,16 +277,9 @@ const takeScreenshotForOverlay = async () => {
       return;
     }
 
-    console.log('Available desktop capturer sources:', sources.map((s, i) => ({
-      index: i,
-      name: s.name,
-      id: s.id,
-      thumbnailSize: s.thumbnail.getSize()
-    })));
 
     // For now, use the first source and rely on cropping to get the right area
     const fullScreenshot = sources[0].thumbnail;
-    console.log('Selected screenshot source size:', fullScreenshot.getSize());
     
     // Restore overlay visibility
     if (wasVisible) {
@@ -352,18 +329,11 @@ const takeScreenshotForOverlay = async () => {
           const img = new Image();
           
           img.onload = () => {
-            console.log('=== CROPPING DEBUG ===');
-            console.log('Full screenshot size:', img.width, 'x', img.height);
-            console.log('Screen work area:', ${screenSize.width}, 'x', ${screenSize.height});
-            console.log('Overlay bounds:', ${bounds.x}, ${bounds.y}, ${bounds.width}, ${bounds.height});
-            console.log('Overlay relative position:', ${relativeX}, ${relativeY});
-            console.log('Display scale factor:', ${displayScaleFactor});
             
             // Calculate the scale factor between the screenshot and actual screen
             const screenScaleX = img.width / ${screenSize.width};
             const screenScaleY = img.height / ${screenSize.height};
             
-            console.log('Calculated scale factors:', screenScaleX, screenScaleY);
             
             // Calculate the source coordinates and dimensions for cropping
             // Use relative position to the display
@@ -372,7 +342,6 @@ const takeScreenshotForOverlay = async () => {
             const sourceWidth = ${bounds.width} * screenScaleX;
             const sourceHeight = ${bounds.height} * screenScaleY;
             
-            console.log('Calculated crop area:', sourceX, sourceY, sourceWidth, sourceHeight);
             
             // Ensure we don't go outside the image bounds
             const clampedSourceX = Math.max(0, Math.min(sourceX, img.width));
@@ -380,8 +349,6 @@ const takeScreenshotForOverlay = async () => {
             const clampedSourceWidth = Math.min(sourceWidth, img.width - clampedSourceX);
             const clampedSourceHeight = Math.min(sourceHeight, img.height - clampedSourceY);
             
-            console.log('Clamped crop area:', clampedSourceX, clampedSourceY, clampedSourceWidth, clampedSourceHeight);
-            console.log('Target canvas size:', ${bounds.width}, 'x', ${bounds.height});
             
             // Clear the canvas first
             ctx.clearRect(0, 0, ${bounds.width}, ${bounds.height});
@@ -395,8 +362,6 @@ const takeScreenshotForOverlay = async () => {
             
             // Convert the cropped canvas to data URL and send back to main process
             const croppedDataUrl = canvas.toDataURL('image/png');
-            console.log('Final cropped image size:', ${bounds.width}, 'x', ${bounds.height});
-            console.log('=== END CROPPING DEBUG ===');
             require('electron').ipcRenderer.send('cropped-screenshot', croppedDataUrl);
           };
           
@@ -420,12 +385,10 @@ const takeScreenshotForOverlay = async () => {
         return;
       }
       
-      console.log('Received cropped screenshot, generating AI summary...');
       
       // Generate AI summary with the cropped screenshot (content underneath overlay)
       summarizeScreenshot(croppedDataUrl).then(summaryResult => {
         if (summaryResult.success) {
-          console.log('AI Summary generated:', summaryResult.result);
           overlayWindow.webContents.send('new-summary', summaryResult.result);
           
           // Also send the summary to the main window
@@ -442,7 +405,6 @@ const takeScreenshotForOverlay = async () => {
         // Clean up
         cropWindow.close();
         ipcMain.removeListener('cropped-screenshot', handleCroppedScreenshot);
-        console.log('Screenshot taken for overlay at:', new Date().toISOString());
       });
     };
 

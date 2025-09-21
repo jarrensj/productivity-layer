@@ -1037,19 +1037,16 @@ class ClipboardManager {
         if (timerTabToggle) {
           timerTabToggle.insertAdjacentHTML('afterend', tabOrderHTML);
           tabOrderContainer = document.getElementById('tab-order-container');
-          console.log('Tab order container created after Timer Tab toggle');
         } else {
           // Fallback: insert at the end of the interface section
           interfaceSection.insertAdjacentHTML('beforeend', tabOrderHTML);
           tabOrderContainer = document.getElementById('tab-order-container');
-          console.log('Tab order container created as fallback');
         }
       }
 
       if (tabOrderContainer) {
         this.renderTabOrderList(tabOrder);
         this.setupTabOrderDragAndDrop();
-        console.log('Tab order UI initialized with order:', tabOrder);
       } else {
         console.error('Failed to create tab order container');
       }
@@ -1082,7 +1079,6 @@ class ClipboardManager {
     `).join('');
 
     tabOrderList.innerHTML = tabOrderHTML;
-    console.log('Rendered tab order list with HTML:', tabOrderHTML);
   }
 
   private setupTabOrderDragAndDrop() {
@@ -2335,7 +2331,6 @@ class SummarizeManager {
         this.showMessage(`Email sent! Matched keywords: ${result.matchedKeywords.join(', ')}`, 'success');
       } else if (result.success && !result.matchedKeywords?.length) {
         // Summary doesn't match any keywords, no email sent
-        console.log('Summary does not match configured keywords, no email sent');
       } else {
         console.error('Failed to send email:', result.error);
       }
