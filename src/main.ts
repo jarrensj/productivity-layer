@@ -612,5 +612,23 @@ ipcMain.handle('chat-window:maximize', (event) => {
   }
 });
 
+// App reset handler
+ipcMain.handle('app:clear-reset', () => {
+  try {
+    // Clear all stored data
+    savedClipboardItems = [];
+    savedLinkItems = [];
+    savedTaskItems = [];
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to reset app data:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to reset app data'
+    };
+  }
+});
+
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
