@@ -67,7 +67,7 @@ body {
 .tab-btn {
   background: none;
   border: none;
-  padding: 10px 6px;
+  padding: 12px 20px;
   cursor: pointer;
   font-size: 11px;
   color: #666;
@@ -1650,12 +1650,8 @@ input:checked + .slider:before {
 .tab-order-item[data-tab="tasks"],
 .tab-order-item[data-tab="chat"],
 .tab-order-item[data-tab="images"],
+.tap-order-item[data-tab="summarize"],
 .tab-order-item[data-tab="timer"] {
-  background: rgba(33, 150, 243, 0.4);
-  border-color: rgba(33, 150, 243, 0.7);
-}
-
-.tab-order-item[data-tab="summarize"] {
   background: rgba(33, 150, 243, 0.4);
   border-color: rgba(33, 150, 243, 0.7);
 }

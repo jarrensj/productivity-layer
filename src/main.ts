@@ -328,16 +328,10 @@ const takeScreenshotForOverlay = async () => {
     const screenSize = targetDisplay.workAreaSize;
     const displayScaleFactor = targetDisplay.scaleFactor;
     
-    console.log('Overlay bounds:', bounds);
-    console.log('Target display bounds:', targetDisplay.bounds);
-    console.log('Target display work area:', screenSize);
-    console.log('Display scale factor:', displayScaleFactor);
     
     // Calculate overlay position relative to the target display
     const relativeX = bounds.x - targetDisplay.bounds.x;
     const relativeY = bounds.y - targetDisplay.bounds.y;
-    
-    console.log('Overlay position relative to display:', relativeX, relativeY);
     
     // Create HTML content for cropping
     const cropHTML = `
