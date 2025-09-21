@@ -1460,6 +1460,13 @@ input:checked + .slider:before {
   justify-content: center;
 }
 
+.time-input-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
 .timer-input-row input[type="number"] {
   width: 60px;
   padding: 8px 12px;
@@ -1475,6 +1482,14 @@ input:checked + .slider:before {
 .timer-input-row input[type="number"]:focus {
   border-color: #007AFF;
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+}
+
+.time-label {
+  font-size: 11px;
+  color: #666;
+  font-weight: 500;
+  text-align: center;
+  margin-top: 2px;
 }
 
 .time-separator {

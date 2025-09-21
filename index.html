@@ -155,11 +155,20 @@
           
           <div class="timer-controls-section">
             <div class="timer-input-row">
-              <input type="number" id="timer-hours" placeholder="0" min="0" max="23" />
+              <div class="time-input-group">
+                <input type="number" id="timer-hours" placeholder="0" min="0" max="23" />
+                <label for="timer-hours" class="time-label">hours</label>
+              </div>
               <span class="time-separator">:</span>
-              <input type="number" id="timer-minutes" placeholder="0" min="0" max="59" />
+              <div class="time-input-group">
+                <input type="number" id="timer-minutes" placeholder="0" min="0" max="59" />
+                <label for="timer-minutes" class="time-label">min</label>
+              </div>
               <span class="time-separator">:</span>
-              <input type="number" id="timer-seconds" placeholder="0" min="0" max="59" />
+              <div class="time-input-group">
+                <input type="number" id="timer-seconds" placeholder="0" min="0" max="59" />
+                <label for="timer-seconds" class="time-label">sec</label>
+              </div>
             </div>
             <div class="timer-buttons">
               <button id="start-timer" class="btn btn-primary">Start</button>
