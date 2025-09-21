@@ -12,3 +12,23 @@ This app is made to speed up productivity!
 - **adjustable opacity**: customize window transparency in settings to preference
 - **image generation**: tab for easy access to generate an image
 - **timer**: tab for a timer
+
+## setup instructions
+
+install dependencies:
+
+```bash
+npm install
+```
+
+set up your .env:
+
+```bash
+cp .env.example .env 
+```
+
+start the development server:
+
+```bash
+npm start
+```
