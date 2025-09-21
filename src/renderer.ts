@@ -390,6 +390,22 @@ class ClipboardManager {
       setTimeout(() => this.ensureActiveTab(), 50);
     });
 
+    document.getElementById('timer-tab-toggle')?.addEventListener('change', (e) => {
+      const toggle = e.target as HTMLInputElement;
+      const isEnabled = toggle.checked;
+      
+      if (!isEnabled && !this.canDisableTab('timer')) {
+        // Prevent disabling if it's the last tab
+        toggle.checked = true;
+        this.showMessage('At least one tab must remain enabled', 'warning');
+        return;
+      }
+      
+      this.toggleTabVisibility('timer', isEnabled);
+      this.saveTabPreferences();
+      setTimeout(() => this.ensureActiveTab(), 50);
+    });
+
     // Opacity slider control
     document.getElementById('opacity-slider')?.addEventListener('input', (e) => {
       const slider = e.target as HTMLInputElement;
@@ -671,11 +687,12 @@ class ClipboardManager {
     const chatEnabled = (document.getElementById('chat-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const imagesEnabled = (document.getElementById('images-tab-toggle') as HTMLInputElement)?.checked ?? true;
     const summarizeEnabled = (document.getElementById('summarize-tab-toggle') as HTMLInputElement)?.checked ?? true;
+    const timerEnabled = (document.getElementById('timer-tab-toggle') as HTMLInputElement)?.checked ?? true;
     
     // Get current tab order from localStorage or use default
     const stored = localStorage.getItem('tabPreferences');
     const currentPreferences = stored ? JSON.parse(stored) : {};
-    const defaultOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize'];
+    const defaultOrder = ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize', 'timer'];
     
     const preferences = {
       clipboardTab: clipboardEnabled,
@@ -685,6 +702,7 @@ class ClipboardManager {
       chatTab: chatEnabled,
       imagesTab: imagesEnabled,
       summarizeTab: summarizeEnabled,
+      timerTab: timerEnabled,
       tabOrder: currentPreferences.tabOrder || defaultOrder
     };
     
@@ -706,16 +724,23 @@ class ClipboardManager {
         chatTab: true,
         imagesTab: true,
         summarizeTab: true,
-        tabOrder: ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize']
+        timerTab: true,
+        tabOrder: ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize', 'timer']
       };
 
-      // Migration: Add Images tab if it doesn't exist in stored preferences
+      // Migration: Add Images and Timer tabs if they don't exist in stored preferences
       if (stored) {
         let needsUpdate = false;
         
         // Add imagesTab if missing
         if (preferences.imagesTab === undefined) {
           preferences.imagesTab = true;
+          needsUpdate = true;
+        }
+        
+        // Add timerTab if missing
+        if (preferences.timerTab === undefined) {
+          preferences.timerTab = true;
           needsUpdate = true;
         }
         
@@ -739,6 +764,13 @@ class ClipboardManager {
           needsUpdate = true;
         }
         
+        // Add 'timer' to tabOrder if missing
+        if (!preferences.tabOrder || !preferences.tabOrder.includes('timer')) {
+          preferences.tabOrder = preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images'];
+          preferences.tabOrder.push('timer');
+          needsUpdate = true;
+        }
+        
         // Save updated preferences
         if (needsUpdate) {
           localStorage.setItem('tabPreferences', JSON.stringify(preferences));
@@ -759,6 +791,7 @@ class ClipboardManager {
       const chatToggle = document.getElementById('chat-tab-toggle') as HTMLInputElement;
       const imagesToggle = document.getElementById('images-tab-toggle') as HTMLInputElement;
       const summarizeToggle = document.getElementById('summarize-tab-toggle') as HTMLInputElement;
+      const timerToggle = document.getElementById('timer-tab-toggle') as HTMLInputElement;
       
       if (clipboardToggle) {
         clipboardToggle.checked = preferences.clipboardTab;
@@ -796,8 +829,13 @@ class ClipboardManager {
         this.toggleTabVisibility('summarize', true);
       }
       
+      if (timerToggle) {
+        timerToggle.checked = preferences.timerTab ?? true;
+        this.toggleTabVisibility('timer', preferences.timerTab ?? true);
+      }
+      
         // Initialize tab order UI in settings
-        this.initializeTabOrderUI(preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize']);
+        this.initializeTabOrderUI(preferences.tabOrder || ['clipboard', 'grammar', 'links', 'tasks', 'chat', 'images', 'summarize', 'timer']);
         
         // Ensure at least one tab is visible and active (with a small delay to ensure DOM is ready)
         setTimeout(() => {
@@ -985,7 +1023,8 @@ class ClipboardManager {
       tasks: 'Tasks',
       chat: 'Chat',
       images: 'Images',
-      summarize: 'Summarize'
+      summarize: 'Summarize',
+      timer: 'Timer'
     };
 
     const tabOrderHTML = tabOrder.map(tabName => `
@@ -2149,6 +2188,331 @@ class SummarizeManager {
   }
 }
 
+// Timer Manager Class
+class TimerManager {
+  private timerDisplay: HTMLElement;
+  private timerStatus: HTMLElement;
+  private hoursInput: HTMLInputElement;
+  private minutesInput: HTMLInputElement;
+  private secondsInput: HTMLInputElement;
+  private startButton: HTMLElement;
+  private pauseButton: HTMLElement;
+  private resetButton: HTMLElement;
+  private presetButtons: NodeListOf<HTMLElement>;
+  
+  private timeRemaining: number = 0; // in seconds
+  private timerId: number | null = null;
+  private isRunning: boolean = false;
+  private isPaused: boolean = false;
+  
+  constructor() {
+    this.timerDisplay = document.getElementById('timer-display')!;
+    this.timerStatus = document.getElementById('timer-status')!;
+    this.hoursInput = document.getElementById('timer-hours') as HTMLInputElement;
+    this.minutesInput = document.getElementById('timer-minutes') as HTMLInputElement;
+    this.secondsInput = document.getElementById('timer-seconds') as HTMLInputElement;
+    this.startButton = document.getElementById('start-timer')!;
+    this.pauseButton = document.getElementById('pause-timer')!;
+    this.resetButton = document.getElementById('reset-timer')!;
+    this.presetButtons = document.querySelectorAll('.preset-btn');
+    
+    this.init();
+  }
+  
+  private init() {
+    this.setupEventListeners();
+    this.loadTimerState();
+    this.updateDisplay();
+    this.updateButtonStates();
+  }
+  
+  private setupEventListeners() {
+    // Control buttons
+    this.startButton.addEventListener('click', () => this.start());
+    this.pauseButton.addEventListener('click', () => this.pause());
+    this.resetButton.addEventListener('click', () => this.reset());
+    
+    // Preset buttons
+    this.presetButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        const time = parseInt((e.target as HTMLElement).dataset.time || '0');
+        this.setTime(time);
+      });
+    });
+    
+    // Input validation
+    [this.hoursInput, this.minutesInput, this.secondsInput].forEach(input => {
+      input.addEventListener('input', () => this.onInputChange());
+      input.addEventListener('blur', () => this.validateInput(input));
+    });
+  }
+  
+  private start() {
+    if (!this.isRunning) {
+      // Get time from inputs if timer is not set
+      if (this.timeRemaining === 0) {
+        const hours = parseInt(this.hoursInput.value) || 0;
+        const minutes = parseInt(this.minutesInput.value) || 0;
+        const seconds = parseInt(this.secondsInput.value) || 0;
+        this.timeRemaining = hours * 3600 + minutes * 60 + seconds;
+      }
+      
+      if (this.timeRemaining > 0) {
+        this.isRunning = true;
+        this.isPaused = false;
+        this.updateButtonStates();
+        this.updateStatus('Running...');
+        this.startCountdown();
+        this.saveTimerState();
+      } else {
+        // Show a message if no time is set
+        Utils.showMessage('Please set a time before starting the timer', 'warning');
+      }
+    }
+  }
+  
+  private pause() {
+    if (this.isRunning) {
+      this.isRunning = false;
+      this.isPaused = true;
+      this.stopCountdown();
+      this.updateButtonStates();
+      this.updateStatus('Paused');
+      this.saveTimerState();
+    }
+  }
+  
+  private reset() {
+    this.isRunning = false;
+    this.isPaused = false;
+    this.timeRemaining = 0;
+    this.stopCountdown();
+    this.clearInputs();
+    this.updateDisplay();
+    this.updateButtonStates();
+    this.updateStatus('Ready to start');
+    this.removeTimerClasses();
+    this.saveTimerState();
+  }
+  
+  private startCountdown() {
+    this.timerId = window.setInterval(() => {
+      this.timeRemaining--;
+      this.updateDisplay();
+      this.saveTimerState();
+      
+      if (this.timeRemaining <= 0) {
+        this.onTimerComplete();
+      }
+    }, 1000);
+    
+    this.timerDisplay.parentElement?.classList.add('running');
+    this.timerDisplay.parentElement?.classList.remove('paused', 'finished');
+  }
+  
+  private stopCountdown() {
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+    
+    if (this.isPaused) {
+      this.timerDisplay.parentElement?.classList.add('paused');
+      this.timerDisplay.parentElement?.classList.remove('running', 'finished');
+    } else {
+      this.timerDisplay.parentElement?.classList.remove('running', 'paused', 'finished');
+    }
+  }
+  
+  private onTimerComplete() {
+    this.isRunning = false;
+    this.isPaused = false;
+    this.timeRemaining = 0;
+    this.stopCountdown();
+    this.updateDisplay();
+    this.updateButtonStates();
+    this.updateStatus('Time\'s up!');
+    this.timerDisplay.parentElement?.classList.add('finished');
+    this.timerDisplay.parentElement?.classList.remove('running', 'paused');
+    this.saveTimerState();
+    
+    // Show notification
+    this.showNotification();
+  }
+  
+  private showNotification() {
+    // Try to show system notification
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Timer Complete!', {
+        body: 'Your timer has finished.',
+        icon: '/icon.png'
+      });
+    } else if ('Notification' in window && Notification.permission !== 'denied') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          new Notification('Timer Complete!', {
+            body: 'Your timer has finished.',
+            icon: '/icon.png'
+          });
+        }
+      });
+    }
+    
+    // Also show in-app message
+    Utils.showMessage('Timer completed!', 'success');
+  }
+  
+  private setTime(seconds: number) {
+    // Reset timer state first
+    this.isRunning = false;
+    this.isPaused = false;
+    this.stopCountdown();
+    
+    this.timeRemaining = seconds;
+    this.updateInputsFromTime();
+    this.updateDisplay();
+    this.updateButtonStates();
+    this.updateStatus('Ready to start');
+    this.removeTimerClasses();
+    this.saveTimerState();
+  }
+  
+  private updateInputsFromTime() {
+    const hours = Math.floor(this.timeRemaining / 3600);
+    const minutes = Math.floor((this.timeRemaining % 3600) / 60);
+    const seconds = this.timeRemaining % 60;
+    
+    this.hoursInput.value = hours > 0 ? hours.toString() : '';
+    this.minutesInput.value = minutes > 0 ? minutes.toString() : '';
+    this.secondsInput.value = seconds > 0 ? seconds.toString() : '';
+  }
+  
+  private updateDisplay() {
+    const hours = Math.floor(this.timeRemaining / 3600);
+    const minutes = Math.floor((this.timeRemaining % 3600) / 60);
+    const seconds = this.timeRemaining % 60;
+    
+    const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    this.timerDisplay.textContent = timeString;
+  }
+  
+  private updateButtonStates() {
+    const hasTime = this.timeRemaining > 0 || this.hasInputTime();
+    
+    // Force a reflow to ensure DOM is updated
+    requestAnimationFrame(() => {
+      if (this.isRunning) {
+        this.startButton.style.display = 'none';
+        this.pauseButton.style.display = 'inline-block';
+        (this.pauseButton as HTMLButtonElement).disabled = false;
+      } else {
+        this.startButton.style.display = 'inline-block';
+        this.pauseButton.style.display = 'none';
+        (this.startButton as HTMLButtonElement).disabled = !hasTime;
+      }
+      
+      (this.resetButton as HTMLButtonElement).disabled = !hasTime && !this.isRunning && !this.isPaused;
+    });
+  }
+  
+  private updateStatus(status: string) {
+    this.timerStatus.textContent = status;
+  }
+  
+  private hasInputTime(): boolean {
+    const hours = parseInt(this.hoursInput.value) || 0;
+    const minutes = parseInt(this.minutesInput.value) || 0;
+    const seconds = parseInt(this.secondsInput.value) || 0;
+    return hours > 0 || minutes > 0 || seconds > 0;
+  }
+  
+  private onInputChange() {
+    // Clear any existing timer state when user changes inputs
+    if (!this.isRunning && !this.isPaused) {
+      this.timeRemaining = 0;
+      this.updateStatus('Ready to start');
+    }
+    
+    // Update button states immediately
+    this.updateButtonStates();
+  }
+  
+  private validateInput(input: HTMLInputElement) {
+    const value = parseInt(input.value);
+    const max = input === this.hoursInput ? 23 : 59;
+    
+    if (isNaN(value) || value < 0) {
+      input.value = '';
+    } else if (value > max) {
+      input.value = max.toString();
+    }
+  }
+  
+  private clearInputs() {
+    this.hoursInput.value = '';
+    this.minutesInput.value = '';
+    this.secondsInput.value = '';
+  }
+  
+  private removeTimerClasses() {
+    this.timerDisplay.parentElement?.classList.remove('running', 'paused', 'finished');
+  }
+  
+  private saveTimerState() {
+    const state = {
+      timeRemaining: this.timeRemaining,
+      isRunning: this.isRunning,
+      isPaused: this.isPaused,
+      timestamp: Date.now()
+    };
+    
+    try {
+      localStorage.setItem('timerState', JSON.stringify(state));
+    } catch (error) {
+      console.error('Failed to save timer state:', error);
+    }
+  }
+  
+  private loadTimerState() {
+    try {
+      const stored = localStorage.getItem('timerState');
+      if (!stored) return;
+      
+      const state = JSON.parse(stored);
+      const timeDiff = Math.floor((Date.now() - state.timestamp) / 1000);
+      
+      if (state.isRunning && state.timeRemaining > 0) {
+        // Calculate remaining time accounting for elapsed time
+        this.timeRemaining = Math.max(0, state.timeRemaining - timeDiff);
+        
+        if (this.timeRemaining > 0) {
+          this.isRunning = true;
+          this.isPaused = false;
+          this.startCountdown();
+          this.updateStatus('Running...');
+        } else {
+          // Timer should have completed while app was closed
+          this.onTimerComplete();
+        }
+      } else if (state.isPaused) {
+        this.timeRemaining = state.timeRemaining;
+        this.isPaused = true;
+        this.isRunning = false;
+        this.updateInputsFromTime();
+        this.updateStatus('Paused');
+        this.timerDisplay.parentElement?.classList.add('paused');
+      } else {
+        this.timeRemaining = state.timeRemaining;
+        this.updateInputsFromTime();
+      }
+      
+      this.updateButtonStates();
+    } catch (error) {
+      console.error('Failed to load timer state:', error);
+    }
+  }
+}
+
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize tab manager
@@ -2162,6 +2526,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize summarize manager
   new SummarizeManager();
+  
+  // Initialize timer manager
+  new TimerManager();
   
   // Wait for electronAPI to be available for clipboard functionality
   if (window.electronAPI) {
