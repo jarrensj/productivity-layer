@@ -1,5 +1,9 @@
 # productivity layer
 
+Grand Prize Winner at the IEEE AI Dev Hack 2025.
+
+## description
+
 This app is made to speed up productivity! 
 
 ## features
