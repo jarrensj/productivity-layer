@@ -23,12 +23,6 @@ interface ElectronChatAPI {
   };
 }
 
-declare global {
-  interface Window {
-    electronAPI: ElectronChatAPI;
-  }
-}
-
 class ChatWindow {
   private messages: ChatMessage[] = [];
   private messagesContainer: HTMLElement;
@@ -73,7 +67,7 @@ class ChatWindow {
 
     // Window controls
     document.getElementById('close-btn')?.addEventListener('click', async () => {
-      await window.electronAPI.window.close();
+      await (window as any).electronAPI.window.close();
     });
   }
 
@@ -88,7 +82,7 @@ class ChatWindow {
 
   private setupInitialMessageListener() {
     // Listen for initial message from main process
-    window.electronAPI.chat.onInitialMessage((message: string) => {
+    (window as any).electronAPI.chat.onInitialMessage((message: string) => {
       this.chatInput.value = message;
       this.autoResizeTextarea();
       // Automatically send the initial message
@@ -124,7 +118,7 @@ class ChatWindow {
 
     try {
       // Send to OpenAI API
-      const response = await window.electronAPI.chat.sendMessage(messageText, this.messages);
+      const response = await (window as any).electronAPI.chat.sendMessage(messageText, this.messages);
       
       if (response.success && response.result) {
         // Add assistant message
@@ -254,12 +248,12 @@ class ChatWindow {
 
 // Initialize the chat window when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  if (window.electronAPI) {
+  if ((window as any).electronAPI) {
     new ChatWindow();
   } else {
     // Retry after a short delay
     setTimeout(() => {
-      if (window.electronAPI) {
+      if ((window as any).electronAPI) {
         new ChatWindow();
       } else {
         console.error('Electron API not available');
