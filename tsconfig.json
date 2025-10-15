@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ESNext",
+    "lib": ["ESNext", "DOM"],
     "module": "commonjs",
     "allowJs": true,
     "skipLibCheck": true,
